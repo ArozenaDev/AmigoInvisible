@@ -9,6 +9,7 @@ import { getAdminSession, ADMIN_SESSION_COOKIE } from '../../lib/server/sessions
 
 const session = await getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value);
 const hasLoginError = Astro.url.searchParams.get('error') === 'login';
+const hasSessionError = Astro.url.searchParams.get('error') === 'session';
 const groups = session ? await listLocalGroups() : [];
 const activeGroups = groups.filter((group) => group.archivedAt === null);
 const editions = (await Promise.all(activeGroups.map((group) => listLocalEditions(group.id)))).flat();
@@ -67,6 +68,7 @@ const activeDrawCount = activeGroups.filter((group) =>
 					<p class="auth-description">Accede para administrar familias, participantes, ediciones e histórico.</p>
 
 					{hasLoginError && <p class="form-error" role="alert">No ha sido posible iniciar sesión.</p>}
+					{hasSessionError && <p class="form-error" role="alert">No se ha podido crear la sesión de administración. Inténtalo de nuevo.</p>}
 					<form class="admin-login-form" action="/api/admin-session" method="post">
 						<label for="admin-username">Usuario</label>
 						<input id="admin-username" name="username" type="text" autocomplete="username" required />

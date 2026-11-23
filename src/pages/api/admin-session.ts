@@ -45,7 +45,13 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 	}
 
 	clearLoginFailures(identifier);
-	const session = await createAdminSession();
-	cookies.set(ADMIN_SESSION_COOKIE, session.id, sessionCookieOptions());
-	return redirect('/admin', 303);
+	try {
+		const session = await createAdminSession();
+		cookies.set(ADMIN_SESSION_COOKIE, session.id, sessionCookieOptions());
+		return redirect('/admin', 303);
+	} catch {
+		// Correct credentials must never leave the browser on an API route if the
+		// private session store is unavailable or cannot confirm its write.
+		return redirect('/admin?error=session', 303);
+	}
 };
