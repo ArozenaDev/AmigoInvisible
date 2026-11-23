@@ -17,6 +17,11 @@ import {
 
 const GENERIC_LOGIN_ERROR = 'No ha sido posible iniciar sesión.';
 
+// The endpoint only accepts the credential form by POST. Visiting it directly
+// should take an administrator to the login page instead of exposing a public
+// route's fallback state.
+export const GET: APIRoute = ({ redirect }) => redirect('/admin', 303);
+
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 	if (!hasSameOrigin(request)) {
 		return new Response(GENERIC_LOGIN_ERROR, { status: 403 });
