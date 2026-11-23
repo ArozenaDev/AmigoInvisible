@@ -10,7 +10,7 @@ import {
 import { generateRaffle, type Assignment } from '../domain/raffle.ts';
 import type { GiftIdea } from '../domain/gift-idea.ts';
 import { participantVisibleName } from '../domain/participant.ts';
-import { getLocalData, updateLocalData } from './local-json-store.ts';
+import { readPersistentData, updatePersistentData } from './persistent-data-store.ts';
 
 export type GenerateEditionResult =
 	| { edition: EditionDocument; ok: true; repeatedPreviousAssignments: number }
@@ -25,9 +25,9 @@ export type LocalRevealResult =
 	| { kind: 'revealed'; recipientName: string; ideas: Pick<GiftIdea, 'affiliateUrl' | 'imageUrl' | 'title'>[] }
 	| { kind: 'unavailable' };
 
-export function createLocalEdition(groupId: string, year: number): EditionDocument | null {
+export async function createLocalEdition(groupId: string, year: number): Promise<EditionDocument | null> {
 	if (!Number.isInteger(year) || year < 2000 || year > 9999) return null;
-	return updateLocalData((data) => {
+	return await updatePersistentData((data) => {
 		if (!data.groups.some((group) => group.id === groupId) || data.editions.some((edition) => edition.groupId === groupId && edition.year === year)) return null;
 		const participants = participantsFromCurrentProfiles(data.participants, groupId);
 		const edition: EditionDocument = {
@@ -53,17 +53,17 @@ export function createLocalEdition(groupId: string, year: number): EditionDocume
 	});
 }
 
-export function listLocalEditions(groupId: string): EditionDocument[] {
-	return getLocalData().editions.filter((edition) => edition.groupId === groupId).sort((first, second) => second.year - first.year);
+export async function listLocalEditions(groupId: string): Promise<EditionDocument[]> {
+	return (await readPersistentData()).editions.filter((edition) => edition.groupId === groupId).sort((first, second) => second.year - first.year);
 }
 
-export function findLocalEdition(editionId: string): EditionDocument | null {
-	return getLocalData().editions.find((edition) => edition.id === editionId) ?? null;
+export async function findLocalEdition(editionId: string): Promise<EditionDocument | null> {
+	return (await readPersistentData()).editions.find((edition) => edition.id === editionId) ?? null;
 }
 
-export function searchLocalEditionParticipants(editionId: string, query: string): PublicParticipantSuggestion[] {
+export async function searchLocalEditionParticipants(editionId: string, query: string): Promise<PublicParticipantSuggestion[]> {
 	const normalizedQuery = normalizeSearchText(query);
-	const edition = findLocalEdition(editionId);
+	const edition = await findLocalEdition(editionId);
 	if (!edition || edition.status !== 'active' || normalizedQuery.length < 2) return [];
 	return edition.participants
 		.filter((participant) => normalizeSearchText(participantVisibleName(participant)).includes(normalizedQuery))
@@ -72,8 +72,8 @@ export function searchLocalEditionParticipants(editionId: string, query: string)
 }
 
 /** Returns a result on every valid PIN-verified visit while the edition is active. */
-export function revealLocalEditionParticipant(editionId: string, participantId: string): LocalRevealResult {
-	return updateLocalData((data) => {
+export async function revealLocalEditionParticipant(editionId: string, participantId: string): Promise<LocalRevealResult> {
+	return await updatePersistentData((data) => {
 		const edition = data.editions.find((currentEdition) => currentEdition.id === editionId);
 		if (!edition || edition.status !== 'active') return { kind: 'unavailable' };
 		const revealState = edition.revealStates.find((state) => state.participantId === participantId);
@@ -96,8 +96,8 @@ export function revealLocalEditionParticipant(editionId: string, participantId: 
 }
 
 /** An inactive edition may be deleted only before anyone has viewed a result. */
-export function removeLocalEditableEdition(editionId: string): boolean {
-	return updateLocalData((data) => {
+export async function removeLocalEditableEdition(editionId: string): Promise<boolean> {
+	return await updatePersistentData((data) => {
 		const editionIndex = data.editions.findIndex((edition) => edition.id === editionId);
 		const edition = data.editions[editionIndex];
 		if (!edition || edition.status !== 'inactive' || edition.revealStates.some((state) => state.revealCount > 0)) return false;
@@ -106,8 +106,8 @@ export function removeLocalEditableEdition(editionId: string): boolean {
 	});
 }
 
-export function activateLocalEdition(editionId: string): EditionDocument | null {
-	return updateLocalData((data) => {
+export async function activateLocalEdition(editionId: string): Promise<EditionDocument | null> {
+	return await updatePersistentData((data) => {
 		const edition = data.editions.find((currentEdition) => currentEdition.id === editionId);
 		const group = edition ? data.groups.find((currentGroup) => currentGroup.id === edition.groupId) : undefined;
 		if (!edition || !group || edition.status !== 'inactive' || edition.assignments.length !== edition.participants.length || group.activeEditionId !== null) return null;
@@ -123,8 +123,8 @@ export function activateLocalEdition(editionId: string): EditionDocument | null 
 	});
 }
 
-export function deactivateLocalEdition(editionId: string): EditionDocument | null {
-	return updateLocalData((data) => {
+export async function deactivateLocalEdition(editionId: string): Promise<EditionDocument | null> {
+	return await updatePersistentData((data) => {
 		const edition = data.editions.find((currentEdition) => currentEdition.id === editionId);
 		const group = edition ? data.groups.find((currentGroup) => currentGroup.id === edition.groupId) : undefined;
 		if (!edition || !group || edition.status !== 'active' || group.activeEditionId !== edition.id) return null;
@@ -138,8 +138,8 @@ export function deactivateLocalEdition(editionId: string): EditionDocument | nul
 	});
 }
 
-export function closeLocalEdition(editionId: string): EditionDocument | null {
-	return updateLocalData((data) => {
+export async function closeLocalEdition(editionId: string): Promise<EditionDocument | null> {
+	return await updatePersistentData((data) => {
 		const edition = data.editions.find((currentEdition) => currentEdition.id === editionId);
 		const group = edition ? data.groups.find((currentGroup) => currentGroup.id === edition.groupId) : undefined;
 		if (!edition || !group || edition.status !== 'active' || group.activeEditionId !== edition.id) return null;
@@ -155,8 +155,8 @@ export function closeLocalEdition(editionId: string): EditionDocument | null {
 }
 
 /** Reopens a closed edition after an administrative mistake without changing its draw. */
-export function reactivateLocalEdition(editionId: string): EditionDocument | null {
-	return updateLocalData((data) => {
+export async function reactivateLocalEdition(editionId: string): Promise<EditionDocument | null> {
+	return await updatePersistentData((data) => {
 		const edition = data.editions.find((currentEdition) => currentEdition.id === editionId);
 		const group = edition ? data.groups.find((currentGroup) => currentGroup.id === edition.groupId) : undefined;
 		if (
@@ -180,8 +180,8 @@ export function reactivateLocalEdition(editionId: string): EditionDocument | nul
 }
 
 /** Refreshes an inactive edition from reusable profiles and invalidates its draw. */
-export function synchronizeLocalEditionParticipants(editionId: string): EditionDocument | null {
-	return updateLocalData((data) => {
+export async function synchronizeLocalEditionParticipants(editionId: string): Promise<EditionDocument | null> {
+	return await updatePersistentData((data) => {
 		const edition = data.editions.find((currentEdition) => currentEdition.id === editionId);
 		if (!edition || edition.status !== 'inactive') return null;
 		applyProfiles(edition, data.participants.filter((profile) => profile.groupId === edition.groupId), data.exclusionPairs);
@@ -192,9 +192,9 @@ export function synchronizeLocalEditionParticipants(editionId: string): EditionD
 }
 
 /** Applies chosen reusable profiles only while the edition is inactive. */
-export function setLocalEditionParticipants(editionId: string, profileIds: string[]): EditionDocument | null {
+export async function setLocalEditionParticipants(editionId: string, profileIds: string[]): Promise<EditionDocument | null> {
 	const uniqueProfileIds = [...new Set(profileIds)];
-	return updateLocalData((data) => {
+	return await updatePersistentData((data) => {
 		const edition = data.editions.find((currentEdition) => currentEdition.id === editionId);
 		if (!edition || edition.status !== 'inactive') return null;
 		const profiles = data.participants.filter((profile) => profile.groupId === edition.groupId && uniqueProfileIds.includes(profile.id));
@@ -207,8 +207,8 @@ export function setLocalEditionParticipants(editionId: string, profileIds: strin
 }
 
 /** Stores the restrictions owned by one inactive edition and invalidates its draw. */
-export function setLocalEditionExclusions(editionId: string, exclusions: readonly EditionExclusion[]): EditionDocument | null {
-	return updateLocalData((data) => {
+export async function setLocalEditionExclusions(editionId: string, exclusions: readonly EditionExclusion[]): Promise<EditionDocument | null> {
+	return await updatePersistentData((data) => {
 		const edition = data.editions.find((currentEdition) => currentEdition.id === editionId);
 		if (!edition || edition.status !== 'inactive') return null;
 		const participantIds = new Set(edition.participants.map((participant) => participant.id));
@@ -226,8 +226,8 @@ export function setLocalEditionExclusions(editionId: string, exclusions: readonl
 	});
 }
 
-export function generateLocalEdition(editionId: string): GenerateEditionResult {
-	return updateLocalData((data) => {
+export async function generateLocalEdition(editionId: string): Promise<GenerateEditionResult> {
+	return await updatePersistentData((data) => {
 		const edition = data.editions.find((currentEdition) => currentEdition.id === editionId);
 		if (!edition || edition.status !== 'inactive') return { ok: false };
 		try {

@@ -4,7 +4,7 @@ import {
 	isValidParticipantName,
 	type ParticipantProfile,
 } from '../domain/participant.ts';
-import { getLocalData, updateLocalData } from './local-json-store.ts';
+import { readPersistentData, updatePersistentData } from './persistent-data-store.ts';
 
 export interface CreateParticipantInput {
 	alias: string | null;
@@ -19,7 +19,7 @@ export interface UpdateParticipantInput {
 
 /** Private local-development directory backed by the ignored JSON file. */
 class LocalParticipantDirectory {
-	create(input: CreateParticipantInput): ParticipantProfile | null {
+	async create(input: CreateParticipantInput): Promise<ParticipantProfile | null> {
 		const alias = input.alias?.trim() || null;
 		if (!isValidParticipantName(input.displayName) || (alias !== null && !isValidParticipantName(alias))) {
 			return null;
@@ -36,29 +36,29 @@ class LocalParticipantDirectory {
 			updatedAt: now,
 		};
 
-		updateLocalData((data) => {
+		await updatePersistentData((data) => {
 			data.participants.push(participant);
 		});
 		return participant;
 	}
 
-	listByGroup(groupId: string): ParticipantProfile[] {
-		return getLocalData().participants
+	async listByGroup(groupId: string): Promise<ParticipantProfile[]> {
+		return (await readPersistentData()).participants
 			.filter((participant) => participant.groupId === groupId)
 			.sort((first, second) => first.displayName.localeCompare(second.displayName, 'es'));
 	}
 
-	findById(id: string): ParticipantProfile | null {
-		return getLocalData().participants.find((participant) => participant.id === id) ?? null;
+	async findById(id: string): Promise<ParticipantProfile | null> {
+		return (await readPersistentData()).participants.find((participant) => participant.id === id) ?? null;
 	}
 
-	update(id: string, groupId: string, input: UpdateParticipantInput): ParticipantProfile | null {
+	async update(id: string, groupId: string, input: UpdateParticipantInput): Promise<ParticipantProfile | null> {
 		const alias = input.alias?.trim() || null;
 		if (!isValidParticipantName(input.displayName) || (alias !== null && !isValidParticipantName(alias))) {
 			return null;
 		}
 
-		return updateLocalData((data) => {
+		return await updatePersistentData((data) => {
 			const participant = data.participants.find((currentParticipant) => currentParticipant.id === id);
 			if (!participant || participant.groupId !== groupId) {
 				return null;
@@ -71,8 +71,8 @@ class LocalParticipantDirectory {
 		});
 	}
 
-	remove(id: string, groupId: string): boolean {
-		return updateLocalData((data) => {
+	async remove(id: string, groupId: string): Promise<boolean> {
+		return await updatePersistentData((data) => {
 			const participant = data.participants.find((currentParticipant) => currentParticipant.id === id);
 			if (!participant || participant.groupId !== groupId) {
 				return false;
@@ -93,13 +93,13 @@ class LocalParticipantDirectory {
 		});
 	}
 
-	listExcludedIds(id: string, groupId: string): string[] {
-		const participant = this.findById(id);
+	async listExcludedIds(id: string, groupId: string): Promise<string[]> {
+		const participant = await this.findById(id);
 		if (!participant || participant.groupId !== groupId) {
 			return [];
 		}
 
-		return getLocalData().exclusionPairs
+		return (await readPersistentData()).exclusionPairs
 			.flatMap((pair) => {
 				const [firstId, secondId] = pair.split(':');
 				if (firstId === id) return [secondId];
@@ -109,9 +109,9 @@ class LocalParticipantDirectory {
 			.sort();
 	}
 
-	setExclusions(id: string, groupId: string, excludedIds: string[]): boolean {
+	async setExclusions(id: string, groupId: string, excludedIds: string[]): Promise<boolean> {
 		const uniqueExcludedIds = [...new Set(excludedIds)];
-		const data = getLocalData();
+		const data = await readPersistentData();
 		const participant = data.participants.find((currentParticipant) => currentParticipant.id === id);
 		const isValid =
 			participant?.groupId === groupId &&
@@ -123,7 +123,7 @@ class LocalParticipantDirectory {
 			return false;
 		}
 
-		return updateLocalData((draft) => {
+		return await updatePersistentData((draft) => {
 			draft.exclusionPairs = draft.exclusionPairs.filter((pair) => !this.#pairIncludesParticipant(pair, id));
 			for (const excludedId of uniqueExcludedIds) {
 				draft.exclusionPairs.push(this.#pairKey(id, excludedId));
@@ -132,12 +132,12 @@ class LocalParticipantDirectory {
 		});
 	}
 
-	setAccessPinHash(id: string, groupId: string, accessPinHash: string): ParticipantProfile | null {
+	async setAccessPinHash(id: string, groupId: string, accessPinHash: string): Promise<ParticipantProfile | null> {
 		if (!accessPinHash) {
 			return null;
 		}
 
-		return updateLocalData((data) => {
+		return await updatePersistentData((data) => {
 			const participant = data.participants.find((currentParticipant) => currentParticipant.id === id);
 			if (!participant || participant.groupId !== groupId) {
 				return null;
@@ -161,42 +161,42 @@ class LocalParticipantDirectory {
 
 const directory = new LocalParticipantDirectory();
 
-export function createLocalParticipant(input: CreateParticipantInput): ParticipantProfile | null {
-	return directory.create(input);
+export async function createLocalParticipant(input: CreateParticipantInput): Promise<ParticipantProfile | null> {
+	return await directory.create(input);
 }
 
-export function listLocalParticipants(groupId: string): ParticipantProfile[] {
-	return directory.listByGroup(groupId);
+export async function listLocalParticipants(groupId: string): Promise<ParticipantProfile[]> {
+	return await directory.listByGroup(groupId);
 }
 
-export function findLocalParticipant(id: string): ParticipantProfile | null {
-	return directory.findById(id);
+export async function findLocalParticipant(id: string): Promise<ParticipantProfile | null> {
+	return await directory.findById(id);
 }
 
-export function removeLocalParticipant(id: string, groupId: string): boolean {
-	return directory.remove(id, groupId);
+export async function removeLocalParticipant(id: string, groupId: string): Promise<boolean> {
+	return await directory.remove(id, groupId);
 }
 
-export function updateLocalParticipant(
+export async function updateLocalParticipant(
 	id: string,
 	groupId: string,
 	input: UpdateParticipantInput,
-): ParticipantProfile | null {
-	return directory.update(id, groupId, input);
+): Promise<ParticipantProfile | null> {
+	return await directory.update(id, groupId, input);
 }
 
-export function listLocalParticipantExclusions(id: string, groupId: string): string[] {
-	return directory.listExcludedIds(id, groupId);
+export async function listLocalParticipantExclusions(id: string, groupId: string): Promise<string[]> {
+	return await directory.listExcludedIds(id, groupId);
 }
 
-export function setLocalParticipantExclusions(id: string, groupId: string, excludedIds: string[]): boolean {
-	return directory.setExclusions(id, groupId, excludedIds);
+export async function setLocalParticipantExclusions(id: string, groupId: string, excludedIds: string[]): Promise<boolean> {
+	return await directory.setExclusions(id, groupId, excludedIds);
 }
 
-export function setLocalParticipantAccessPinHash(
+export async function setLocalParticipantAccessPinHash(
 	id: string,
 	groupId: string,
 	accessPinHash: string,
-): ParticipantProfile | null {
-	return directory.setAccessPinHash(id, groupId, accessPinHash);
+): Promise<ParticipantProfile | null> {
+	return await directory.setAccessPinHash(id, groupId, accessPinHash);
 }

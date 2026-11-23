@@ -7,12 +7,12 @@ import { participantVisibleName } from '../../../lib/domain/participant.ts';
 import type { RevealEvent } from '../../../lib/domain/edition.ts';
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
 
-if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) return Astro.redirect('/admin');
+if (!await getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) return Astro.redirect('/admin');
 
-const groups = listLocalGroups();
+const groups = await listLocalGroups();
 const selectedSlug = Astro.url.searchParams.get('family') ?? '';
-const selectedGroup = findLocalGroup(selectedSlug);
-const editions = selectedGroup ? listLocalEditions(selectedGroup.id) : [];
+const selectedGroup = await findLocalGroup(selectedSlug);
+const editions = selectedGroup ? await listLocalEditions(selectedGroup.id) : [];
 const selectedEditionId = Astro.url.searchParams.get('edition') ?? editions[0]?.id ?? '';
 const selectedEdition = editions.find((edition) => edition.id === selectedEditionId) ?? null;
 const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat('es-ES', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Madrid' }).format(new Date(value)) : '—';

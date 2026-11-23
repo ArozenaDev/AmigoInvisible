@@ -4,11 +4,11 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { findLocalGroup } from '../../../lib/server/group-directory.ts';
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
 
-if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+if (!await getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
 	return Astro.redirect('/admin');
 }
 
-const group = findLocalGroup(Astro.params.slug ?? '');
+const group = await findLocalGroup(Astro.params.slug ?? '');
 const hasSettingsError = Astro.url.searchParams.get('error') === 'settings';
 const hasPasswordError = Astro.url.searchParams.get('error') === 'password';
 const hasSettingsUpdate = Astro.url.searchParams.get('updated') === 'settings';

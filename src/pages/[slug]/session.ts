@@ -31,7 +31,7 @@ export const POST: APIRoute = async ({ params, request, cookies, redirect }) => 
 	}
 
 	const password = (await request.formData()).get('password');
-	const group = findAvailableLocalGroup(slug);
+	const group = await findAvailableLocalGroup(slug);
 	const passwordMatches =
 		typeof password === 'string' && verifyPassword(password, group?.accessPasswordHash ?? unknownGroupPasswordHash);
 
@@ -41,7 +41,7 @@ export const POST: APIRoute = async ({ params, request, cookies, redirect }) => 
 	}
 
 	clearLoginFailures(identifier);
-	const session = createGroupSession(group.id);
+	const session = await createGroupSession(group.id);
 	cookies.set(GROUP_SESSION_COOKIE, session.id, sessionCookieOptions(`/${slug}`));
 	return redirect(`/${slug}`, 303);
 };

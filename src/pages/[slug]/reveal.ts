@@ -23,9 +23,9 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
 	}
 
 	const slug = params.slug ?? '';
-	const group = findAvailableLocalGroup(slug);
-	const session = group ? getGroupSession(cookies.get(GROUP_SESSION_COOKIE)?.value, group.id) : null;
-	const activeEdition = group?.activeEditionId ? findLocalEdition(group.activeEditionId) : null;
+	const group = await findAvailableLocalGroup(slug);
+	const session = group ? await getGroupSession(cookies.get(GROUP_SESSION_COOKIE)?.value, group.id) : null;
+	const activeEdition = group?.activeEditionId ? await findLocalEdition(group.activeEditionId) : null;
 	if (!group || !session || !activeEdition || activeEdition.groupId !== group.id || activeEdition.status !== 'active') {
 		return json({ message: 'No ha sido posible revelar el resultado.' }, 403);
 	}
@@ -42,7 +42,7 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
 	}
 
 	const editionParticipant = activeEdition.participants.find((participant) => participant.id === participantId);
-	const participant = editionParticipant ? findLocalParticipant(editionParticipant.profileId) : null;
+	const participant = editionParticipant ? await findLocalParticipant(editionParticipant.profileId) : null;
 	const { sessionSecret } = getServerSecrets();
 	const pinMatches = verifyParticipantPin(pin, participant?.accessPinHash ?? unknownPinHash, sessionSecret);
 	if (!pinMatches || participant?.groupId !== group.id) {
@@ -52,7 +52,7 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
 
 	clearParticipantPinFailures(pinAttemptId);
 
-	const result = revealLocalEditionParticipant(activeEdition.id, participantId);
+	const result = await revealLocalEditionParticipant(activeEdition.id, participantId);
 	if (result.kind !== 'revealed') {
 		return json({ message: 'No ha sido posible revelar el resultado.' }, 409);
 	}

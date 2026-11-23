@@ -5,25 +5,25 @@ import { findLocalGroup } from '../../../../../../lib/server/group-directory.ts'
 import { hasSameOrigin } from '../../../../../../lib/server/request-security.ts';
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../../../../lib/server/sessions.ts';
 
-export const POST: APIRoute = ({ params, request, cookies, redirect }) => {
-	if (!hasSameOrigin(request) || !getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+export const POST: APIRoute = async ({ params, request, cookies, redirect }) => {
+	if (!hasSameOrigin(request) || !await getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
 		return new Response(null, { status: 403 });
 	}
 
 	const slug = params.slug ?? '';
 	const editionId = params.id ?? '';
-	const group = findLocalGroup(slug);
-	if (!group || group.archivedAt !== null || !listLocalEditions(group.id).some((edition) => edition.id === editionId)) {
+	const group = await findLocalGroup(slug);
+	if (!group || group.archivedAt !== null || !(await listLocalEditions(group.id)).some((edition) => edition.id === editionId)) {
 		return new Response(null, { status: 404 });
 	}
 
-	return removeLocalEditableEdition(editionId)
+	return await removeLocalEditableEdition(editionId)
 		? redirectToDraws(redirect, slug, 'deleted=edition')
 		: redirectToDraws(redirect, slug, 'error=delete-edition');
 };
 
 function redirectToDraws(
-	redirect: (location: string, status?: number) => Response,
+	redirect: (location: string, status?: 300 | 301 | 302 | 303 | 304 | 307 | 308) => Response,
 	slug: string,
 	query: string,
 ): Response {

@@ -5,7 +5,7 @@ import {
 	isValidSlug,
 	type GroupRecord,
 } from '../domain/group.ts';
-import { getLocalData, updateLocalData } from './local-json-store.ts';
+import { readPersistentData, updatePersistentData } from './persistent-data-store.ts';
 
 export interface CreateGroupInput {
 	accessPasswordHash: string;
@@ -24,8 +24,8 @@ export interface UpdateGroupSettingsInput {
  * no source fixtures, so family names and passwords never enter the repository.
  */
 class LocalGroupDirectory {
-	create(input: CreateGroupInput): GroupRecord | null {
-		if (!isValidSlug(input.slug) || getLocalData().groups.some((group) => group.slug === input.slug)) {
+	async create(input: CreateGroupInput): Promise<GroupRecord | null> {
+		if (!isValidSlug(input.slug) || (await readPersistentData()).groups.some((group) => group.slug === input.slug)) {
 			return null;
 		}
 
@@ -43,7 +43,7 @@ class LocalGroupDirectory {
 		};
 
 		assertGroupRecord(group);
-		const wasCreated = updateLocalData((data) => {
+		const wasCreated = await updatePersistentData((data) => {
 			if (data.groups.some((currentGroup) => currentGroup.slug === group.slug)) {
 				return false;
 			}
@@ -56,21 +56,21 @@ class LocalGroupDirectory {
 		return group;
 	}
 
-	findAvailableBySlug(slug: string): GroupRecord | null {
-		const group = getLocalData().groups.find((currentGroup) => currentGroup.slug === slug);
+	async findAvailableBySlug(slug: string): Promise<GroupRecord | null> {
+		const group = (await readPersistentData()).groups.find((currentGroup) => currentGroup.slug === slug);
 		return group && group.archivedAt === null ? group : null;
 	}
 
-	findBySlug(slug: string): GroupRecord | null {
-		return getLocalData().groups.find((group) => group.slug === slug) ?? null;
+	async findBySlug(slug: string): Promise<GroupRecord | null> {
+		return (await readPersistentData()).groups.find((group) => group.slug === slug) ?? null;
 	}
 
-	list(): GroupRecord[] {
-		return [...getLocalData().groups].sort((first, second) => first.name.localeCompare(second.name, 'es'));
+	async list(): Promise<GroupRecord[]> {
+		return [...(await readPersistentData()).groups].sort((first, second) => first.name.localeCompare(second.name, 'es'));
 	}
 
-	setArchived(slug: string, archived: boolean): GroupRecord | null {
-		return updateLocalData((data) => {
+	async setArchived(slug: string, archived: boolean): Promise<GroupRecord | null> {
+		return await updatePersistentData((data) => {
 			const group = data.groups.find((currentGroup) => currentGroup.slug === slug);
 			if (!group) {
 				return null;
@@ -82,7 +82,7 @@ class LocalGroupDirectory {
 		});
 	}
 
-	updateSettings(slug: string, input: UpdateGroupSettingsInput): GroupRecord | null {
+	async updateSettings(slug: string, input: UpdateGroupSettingsInput): Promise<GroupRecord | null> {
 		const name = input.name.trim();
 		if (
 			!name ||
@@ -93,7 +93,7 @@ class LocalGroupDirectory {
 			return null;
 		}
 
-		return updateLocalData((data) => {
+		return await updatePersistentData((data) => {
 			const group = data.groups.find((currentGroup) => currentGroup.slug === slug);
 			if (!group) {
 				return null;
@@ -106,12 +106,12 @@ class LocalGroupDirectory {
 		});
 	}
 
-	updateAccessPasswordHash(slug: string, accessPasswordHash: string): GroupRecord | null {
+	async updateAccessPasswordHash(slug: string, accessPasswordHash: string): Promise<GroupRecord | null> {
 		if (!accessPasswordHash) {
 			return null;
 		}
 
-		return updateLocalData((data) => {
+		return await updatePersistentData((data) => {
 			const group = data.groups.find((currentGroup) => currentGroup.slug === slug);
 			if (!group) {
 				return null;
@@ -126,30 +126,30 @@ class LocalGroupDirectory {
 
 const directory = new LocalGroupDirectory();
 
-export function createLocalGroup(input: CreateGroupInput): GroupRecord | null {
-	return directory.create(input);
+export async function createLocalGroup(input: CreateGroupInput): Promise<GroupRecord | null> {
+	return await directory.create(input);
 }
 
-export function findAvailableLocalGroup(slug: string): GroupRecord | null {
-	return directory.findAvailableBySlug(slug);
+export async function findAvailableLocalGroup(slug: string): Promise<GroupRecord | null> {
+	return await directory.findAvailableBySlug(slug);
 }
 
-export function findLocalGroup(slug: string): GroupRecord | null {
-	return directory.findBySlug(slug);
+export async function findLocalGroup(slug: string): Promise<GroupRecord | null> {
+	return await directory.findBySlug(slug);
 }
 
-export function listLocalGroups(): GroupRecord[] {
-	return directory.list();
+export async function listLocalGroups(): Promise<GroupRecord[]> {
+	return await directory.list();
 }
 
-export function setLocalGroupArchived(slug: string, archived: boolean): GroupRecord | null {
-	return directory.setArchived(slug, archived);
+export async function setLocalGroupArchived(slug: string, archived: boolean): Promise<GroupRecord | null> {
+	return await directory.setArchived(slug, archived);
 }
 
-export function updateLocalGroupSettings(slug: string, input: UpdateGroupSettingsInput): GroupRecord | null {
-	return directory.updateSettings(slug, input);
+export async function updateLocalGroupSettings(slug: string, input: UpdateGroupSettingsInput): Promise<GroupRecord | null> {
+	return await directory.updateSettings(slug, input);
 }
 
-export function updateLocalGroupAccessPasswordHash(slug: string, accessPasswordHash: string): GroupRecord | null {
-	return directory.updateAccessPasswordHash(slug, accessPasswordHash);
+export async function updateLocalGroupAccessPasswordHash(slug: string, accessPasswordHash: string): Promise<GroupRecord | null> {
+	return await directory.updateAccessPasswordHash(slug, accessPasswordHash);
 }

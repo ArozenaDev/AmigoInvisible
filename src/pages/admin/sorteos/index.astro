@@ -5,12 +5,12 @@ import { listLocalEditions } from '../../../lib/server/edition-directory.ts';
 import { findLocalGroup, listLocalGroups } from '../../../lib/server/group-directory.ts';
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
 
-if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) return Astro.redirect('/admin');
+if (!await getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) return Astro.redirect('/admin');
 
-const groups = listLocalGroups().filter((group) => group.archivedAt === null);
+const groups = (await listLocalGroups()).filter((group) => group.archivedAt === null);
 const selectedSlug = Astro.url.searchParams.get('family') ?? '';
-const selectedGroup = findLocalGroup(selectedSlug);
-const editions = selectedGroup && selectedGroup.archivedAt === null ? listLocalEditions(selectedGroup.id) : [];
+const selectedGroup = await findLocalGroup(selectedSlug);
+const editions = selectedGroup && selectedGroup.archivedAt === null ? await listLocalEditions(selectedGroup.id) : [];
 const defaultYear = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Madrid', year: 'numeric' }).format(new Date()));
 const hasCreationError = Astro.url.searchParams.get('error') === 'edition';
 const hasGenerationError = Astro.url.searchParams.get('error') === 'generation';

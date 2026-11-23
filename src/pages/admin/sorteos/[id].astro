@@ -7,14 +7,14 @@ import { listLocalParticipants } from '../../../lib/server/participant-directory
 import { participantVisibleName } from '../../../lib/domain/participant.ts';
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
 
-if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+if (!await getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
 	return Astro.redirect('/admin');
 }
 
-const edition = findLocalEdition(Astro.params.id ?? '');
-const group = edition ? findLocalGroup(Astro.url.searchParams.get('family') ?? '') : null;
+const edition = await findLocalEdition(Astro.params.id ?? '');
+const group = edition ? await findLocalGroup(Astro.url.searchParams.get('family') ?? '') : null;
 const isValidContext = edition !== null && group !== null && edition.groupId === group.id;
-const profiles = group ? listLocalParticipants(group.id) : [];
+const profiles = group ? await listLocalParticipants(group.id) : [];
 const selectedProfileIds = new Set(edition?.participants.map((participant) => participant.profileId) ?? []);
 const isEditable = edition?.status === 'inactive';
 const hasMemberError = Astro.url.searchParams.get('error') === 'members';

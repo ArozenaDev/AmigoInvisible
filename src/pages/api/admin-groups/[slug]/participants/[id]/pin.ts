@@ -8,20 +8,20 @@ import { setLocalParticipantAccessPinHash } from '../../../../../../lib/server/p
 import { hasSameOrigin } from '../../../../../../lib/server/request-security.ts';
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../../../../lib/server/sessions.ts';
 
-export const POST: APIRoute = ({ params, request, cookies }) => {
-	if (!hasSameOrigin(request) || !getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+export const POST: APIRoute = async ({ params, request, cookies }) => {
+	if (!hasSameOrigin(request) || !await getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
 		return json({ message: 'No ha sido posible generar el PIN.' }, 403);
 	}
 
 	const slug = params.slug ?? '';
-	const group = findLocalGroup(slug);
+	const group = await findLocalGroup(slug);
 	if (!group || group.archivedAt !== null) {
 		return json({ message: 'No ha sido posible generar el PIN.' }, 404);
 	}
 
 	const pin = randomInt(0, 10_000).toString().padStart(4, '0');
 	const { sessionSecret } = getServerSecrets();
-	const participant = setLocalParticipantAccessPinHash(params.id ?? '', group.id, hashParticipantPin(pin, sessionSecret));
+	const participant = await setLocalParticipantAccessPinHash(params.id ?? '', group.id, hashParticipantPin(pin, sessionSecret));
 	return participant
 		? json({ pin })
 		: json({ message: 'No ha sido posible generar el PIN.' }, 404);

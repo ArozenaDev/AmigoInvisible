@@ -9,23 +9,23 @@ import {
 import { participantVisibleName } from '../../../lib/domain/participant.ts';
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
 
-if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+if (!await getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
 	return Astro.redirect('/admin');
 }
 
-const groups = listLocalGroups().filter((group) => group.archivedAt === null);
+const groups = (await listLocalGroups()).filter((group) => group.archivedAt === null);
 const selectedSlug = Astro.url.searchParams.get('family') ?? '';
-const selectedGroup = findLocalGroup(selectedSlug);
-const participants = selectedGroup ? listLocalParticipants(selectedGroup.id) : [];
+const selectedGroup = await findLocalGroup(selectedSlug);
+const participants = selectedGroup ? await listLocalParticipants(selectedGroup.id) : [];
 const participantNamesById = new Map(participants.map((participant) => [participant.id, participantVisibleName(participant)]));
-const exclusionsByParticipantId = new Map(
-	participants.map((participant) => [
+const exclusionsByParticipantId = new Map<string, string[]>(await Promise.all(
+	participants.map(async (participant) => [
 		participant.id,
-		listLocalParticipantExclusions(participant.id, participant.groupId)
+		(await listLocalParticipantExclusions(participant.id, participant.groupId))
 			.map((excludedParticipantId) => participantNamesById.get(excludedParticipantId))
 			.filter((name): name is string => name !== undefined),
-	]),
-);
+	] as const),
+));
 const participantRows = participants.map((participant) => ({
 	exclusions: exclusionsByParticipantId.get(participant.id) ?? [],
 	participant,

@@ -6,21 +6,21 @@ import { hasSameOrigin } from '../../../../../../../lib/server/request-security.
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../../../../../lib/server/sessions.ts';
 
 export const POST: APIRoute = async ({ params, request, cookies, redirect }) => {
-	if (!hasSameOrigin(request) || !getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+	if (!hasSameOrigin(request) || !await getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
 		return new Response(null, { status: 403 });
 	}
 
 	const slug = params.slug ?? '';
 	const participantId = params.id ?? '';
 	const ideaId = params.ideaId ?? '';
-	const group = findLocalGroup(slug);
+	const group = await findLocalGroup(slug);
 	if (!group || group.archivedAt !== null) {
 		return new Response(null, { status: 404 });
 	}
 
 	const formData = await request.formData();
 	if (formData.get('intent') === 'delete') {
-		return removeLocalGiftIdea(group.id, participantId, ideaId)
+		return await removeLocalGiftIdea(group.id, participantId, ideaId)
 			? redirectToGifts(redirect, participantId, slug, 'updated=gifts')
 			: redirectToGifts(redirect, participantId, slug, 'error=gifts');
 	}
@@ -32,13 +32,13 @@ export const POST: APIRoute = async ({ params, request, cookies, redirect }) => 
 		return redirectToGifts(redirect, participantId, slug, 'error=gifts');
 	}
 
-	return updateLocalGiftIdea(group.id, participantId, ideaId, { affiliateUrl, imageUrl, title })
+	return await updateLocalGiftIdea(group.id, participantId, ideaId, { affiliateUrl, imageUrl, title })
 		? redirectToGifts(redirect, participantId, slug, 'updated=gifts')
 		: redirectToGifts(redirect, participantId, slug, 'error=gifts');
 };
 
 function redirectToGifts(
-	redirect: (location: string, status?: number) => Response,
+	redirect: (location: string, status?: 300 | 301 | 302 | 303 | 304 | 307 | 308) => Response,
 	participantId: string,
 	slug: string,
 	query: string,

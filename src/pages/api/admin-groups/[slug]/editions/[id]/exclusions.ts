@@ -7,15 +7,15 @@ import { hasSameOrigin } from '../../../../../../lib/server/request-security.ts'
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../../../../lib/server/sessions.ts';
 
 export const POST: APIRoute = async ({ params, request, cookies, redirect }) => {
-	if (!hasSameOrigin(request) || !getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+	if (!hasSameOrigin(request) || !await getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
 		return new Response(null, { status: 403 });
 	}
 
 	const slug = params.slug ?? '';
 	const editionId = params.id ?? '';
-	const group = findLocalGroup(slug);
+	const group = await findLocalGroup(slug);
 	const destination = `/admin/sorteos/${editionId}?family=${encodeURIComponent(slug)}`;
-	if (!group || group.archivedAt !== null || !listLocalEditions(group.id).some((edition) => edition.id === editionId)) {
+	if (!group || group.archivedAt !== null || !(await listLocalEditions(group.id)).some((edition) => edition.id === editionId)) {
 		return new Response(null, { status: 404 });
 	}
 
@@ -44,7 +44,7 @@ export const POST: APIRoute = async ({ params, request, cookies, redirect }) => 
 		exclusions.push({ firstParticipantId: decodedPair[0], secondParticipantId: decodedPair[1] });
 	}
 
-	return setLocalEditionExclusions(editionId, exclusions)
+	return await setLocalEditionExclusions(editionId, exclusions)
 		? redirect(`${destination}&updated=exclusions#edition-exclusions`, 303)
 		: redirect(`${destination}&error=exclusions#edition-exclusions`, 303);
 };

@@ -6,12 +6,12 @@ import { hasSameOrigin } from '../../../../lib/server/request-security.ts';
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../../lib/server/sessions.ts';
 
 export const POST: APIRoute = async ({ params, request, cookies, redirect }) => {
-	if (!hasSameOrigin(request) || !getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+	if (!hasSameOrigin(request) || !await getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
 		return new Response(null, { status: 403 });
 	}
 
 	const slug = params.slug ?? '';
-	const group = findLocalGroup(slug);
+	const group = await findLocalGroup(slug);
 	const formData = await request.formData();
 	const displayName = formData.get('displayName');
 	const alias = formData.get('alias');
@@ -20,7 +20,7 @@ export const POST: APIRoute = async ({ params, request, cookies, redirect }) => 
 		return redirect(`/admin/participantes?family=${encodeURIComponent(slug)}&error=validation`, 303);
 	}
 
-	const participant = createLocalParticipant({
+	const participant = await createLocalParticipant({
 		alias: typeof alias === 'string' && alias.trim().length > 0 ? alias : null,
 		displayName,
 		groupId: group.id,

@@ -116,10 +116,17 @@ entorno local; no lo hagas si necesitas conservar tus pruebas.
 
 ## Producción
 
-La configuración de producción queda pendiente. Antes de desplegar con datos
-reales será necesario configurar almacenamiento privado, secretos de entorno,
-limitación de intentos compartida entre instancias y copias de seguridad con
-restauración comprobada.
+La aplicación usa el adaptador SSR de Vercel y, al ejecutarse en Vercel,
+guarda su estado en un único JSON de **Vercel Blob privado**. Las lecturas
+sensibles evitan caché y las escrituras emplean ETag para no sobrescribir
+cambios concurrentes. El JSON nunca se entrega directamente al navegador.
+
+Configura `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH` y `SESSION_SECRET` como
+variables privadas del proyecto. Vercel Blob utiliza credenciales de corta
+duración OIDC en producción; no copies el token de Blob al repositorio ni al
+cliente. Antes de abrir el sitio al público configura también límites de
+peticiones en la capa de seguridad de Vercel y un procedimiento externo,
+cifrado y comprobado de copias de seguridad.
 
 ## Contribución
 

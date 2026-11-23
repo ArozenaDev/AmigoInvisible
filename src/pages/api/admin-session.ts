@@ -40,7 +40,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 	}
 
 	clearLoginFailures(identifier);
-	const session = createAdminSession();
+	const session = await createAdminSession();
 	cookies.set(ADMIN_SESSION_COOKIE, session.id, sessionCookieOptions());
 	return redirect('/admin', 303);
 };

@@ -5,22 +5,22 @@ import {
 	type GiftIdea,
 	type GiftIdeaInput,
 } from '../domain/gift-idea.ts';
-import { getLocalData, updateLocalData } from './local-json-store.ts';
+import { readPersistentData, updatePersistentData } from './persistent-data-store.ts';
 
-export function createLocalGiftIdea(
+export async function createLocalGiftIdea(
 	groupId: string,
 	participantId: string,
 	input: GiftIdeaInput,
-): GiftIdea | null {
+): Promise<GiftIdea | null> {
 	const normalized = normalizeGiftIdeaInput(input);
-	if (!normalized || !participantBelongsToGroup(participantId, groupId)) {
+	if (!normalized || !await participantBelongsToGroup(participantId, groupId)) {
 		return null;
 	}
 
 	const now = new Date().toISOString();
 	const sortOrder = Math.max(
 		-1,
-		...getLocalData().giftIdeas
+		...(await readPersistentData()).giftIdeas
 			.filter((idea) => idea.participantId === participantId)
 			.map((idea) => idea.sortOrder),
 	) + 1;
@@ -34,30 +34,30 @@ export function createLocalGiftIdea(
 		updatedAt: now,
 	};
 
-	updateLocalData((data) => {
+	await updatePersistentData((data) => {
 		data.giftIdeas.push(idea);
 	});
 	return idea;
 }
 
-export function listLocalGiftIdeas(groupId: string, participantId: string): GiftIdea[] {
-	return getLocalData().giftIdeas
+export async function listLocalGiftIdeas(groupId: string, participantId: string): Promise<GiftIdea[]> {
+	return (await readPersistentData()).giftIdeas
 		.filter((idea) => idea.groupId === groupId && idea.participantId === participantId)
 		.sort((first, second) => first.sortOrder - second.sortOrder || first.createdAt.localeCompare(second.createdAt));
 }
 
-export function updateLocalGiftIdea(
+export async function updateLocalGiftIdea(
 	groupId: string,
 	participantId: string,
 	ideaId: string,
 	input: GiftIdeaInput,
-): GiftIdea | null {
+): Promise<GiftIdea | null> {
 	const normalized = normalizeGiftIdeaInput(input);
-	if (!normalized || !participantBelongsToGroup(participantId, groupId)) {
+	if (!normalized || !await participantBelongsToGroup(participantId, groupId)) {
 		return null;
 	}
 
-	return updateLocalData((data) => {
+	return await updatePersistentData((data) => {
 		const idea = data.giftIdeas.find(
 			(currentIdea) =>
 				currentIdea.id === ideaId &&
@@ -76,12 +76,12 @@ export function updateLocalGiftIdea(
 	});
 }
 
-export function removeLocalGiftIdea(groupId: string, participantId: string, ideaId: string): boolean {
-	if (!participantBelongsToGroup(participantId, groupId)) {
+export async function removeLocalGiftIdea(groupId: string, participantId: string, ideaId: string): Promise<boolean> {
+	if (!await participantBelongsToGroup(participantId, groupId)) {
 		return false;
 	}
 
-	return updateLocalData((data) => {
+	return await updatePersistentData((data) => {
 		const exists = data.giftIdeas.some(
 			(idea) => idea.id === ideaId && idea.groupId === groupId && idea.participantId === participantId,
 		);
@@ -94,8 +94,8 @@ export function removeLocalGiftIdea(groupId: string, participantId: string, idea
 	});
 }
 
-function participantBelongsToGroup(participantId: string, groupId: string): boolean {
-	return getLocalData().participants.some(
+async function participantBelongsToGroup(participantId: string, groupId: string): Promise<boolean> {
+	return (await readPersistentData()).participants.some(
 		(participant) => participant.id === participantId && participant.groupId === groupId,
 	);
 }

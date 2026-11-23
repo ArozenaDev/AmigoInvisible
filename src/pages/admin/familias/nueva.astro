@@ -3,7 +3,7 @@ import Brand from '../../../components/Brand.astro';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
 
-const session = getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value);
+const session = await getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value);
 const hasValidationError = Astro.url.searchParams.get('error') === 'validation';
 
 if (!session) {

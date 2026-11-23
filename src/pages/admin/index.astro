@@ -7,12 +7,13 @@ import { listLocalGroups } from '../../lib/server/group-directory.ts';
 import { listLocalParticipants } from '../../lib/server/participant-directory.ts';
 import { getAdminSession, ADMIN_SESSION_COOKIE } from '../../lib/server/sessions.ts';
 
-const session = getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value);
+const session = await getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value);
 const hasLoginError = Astro.url.searchParams.get('error') === 'login';
-const groups = session ? listLocalGroups() : [];
+const groups = session ? await listLocalGroups() : [];
 const activeGroups = groups.filter((group) => group.archivedAt === null);
-const editions = activeGroups.flatMap((group) => listLocalEditions(group.id));
-const participantCount = activeGroups.reduce((total, group) => total + listLocalParticipants(group.id).length, 0);
+const editions = (await Promise.all(activeGroups.map((group) => listLocalEditions(group.id)))).flat();
+const participantCount = (await Promise.all(activeGroups.map((group) => listLocalParticipants(group.id))))
+	.reduce((total, participants) => total + participants.length, 0);
 const activeDrawCount = activeGroups.filter((group) =>
 	group.activeEditionId !== null && editions.some((edition) => edition.id === group.activeEditionId && edition.status === 'active'),
 ).length;

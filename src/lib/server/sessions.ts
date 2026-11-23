@@ -1,10 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
-import {
-	getLocalData,
-	updateLocalData,
-	type StoredSessionRecord,
-} from './local-json-store.ts';
+import { type StoredSessionRecord } from './local-json-store.ts';
+import { readPersistentData, updatePersistentData } from './persistent-data-store.ts';
 
 const SESSION_DURATION_SECONDS = 30 * 24 * 60 * 60;
 const SESSION_DURATION_MILLISECONDS = SESSION_DURATION_SECONDS * 1000;
@@ -35,24 +32,24 @@ export type Session = AdminSession | GroupSession;
  * their opaque random session ID.
  */
 class LocalSessionRegistry {
-	createAdmin(): AdminSession {
-		return this.store({ type: 'admin' }) as AdminSession;
+	async createAdmin(): Promise<AdminSession> {
+		return await this.store({ type: 'admin' }) as AdminSession;
 	}
 
-	createGroup(groupId: string): GroupSession {
-		return this.store({ groupId, type: 'group' }) as GroupSession;
+	async createGroup(groupId: string): Promise<GroupSession> {
+		return await this.store({ groupId, type: 'group' }) as GroupSession;
 	}
 
-	get(sessionId: string | undefined): Session | null {
+	async get(sessionId: string | undefined): Promise<Session | null> {
 		if (!sessionId) {
 			return null;
 		}
 
-		const storedSession = getLocalData().sessions.find((session) => session.id === sessionId);
+		const storedSession = (await readPersistentData()).sessions.find((session) => session.id === sessionId);
 		const session = storedSession ? toSession(storedSession) : null;
 		if (!session || session.expiresAt.getTime() <= Date.now()) {
 			if (storedSession) {
-				this.revoke(sessionId);
+				await this.revoke(sessionId);
 			}
 			return null;
 		}
@@ -60,17 +57,17 @@ class LocalSessionRegistry {
 		return session;
 	}
 
-	revoke(sessionId: string | undefined): void {
-		if (!sessionId || !getLocalData().sessions.some((session) => session.id === sessionId)) {
+	async revoke(sessionId: string | undefined): Promise<void> {
+		if (!sessionId || !(await readPersistentData()).sessions.some((session) => session.id === sessionId)) {
 			return;
 		}
 
-		updateLocalData((data) => {
+		await updatePersistentData((data) => {
 			data.sessions = data.sessions.filter((session) => session.id !== sessionId);
 		});
 	}
 
-	private store(details: Pick<StoredSessionRecord, 'groupId' | 'type'>): Session {
+	private async store(details: Pick<StoredSessionRecord, 'groupId' | 'type'>): Promise<Session> {
 		const createdAt = new Date();
 		const storedSession: StoredSessionRecord = {
 			...details,
@@ -79,7 +76,7 @@ class LocalSessionRegistry {
 			id: randomBytes(32).toString('base64url'),
 		};
 
-		updateLocalData((data) => {
+		await updatePersistentData((data) => {
 			data.sessions = data.sessions.filter((session) => {
 				const expiresAt = new Date(session.expiresAt).getTime();
 				return Number.isFinite(expiresAt) && expiresAt > Date.now();
@@ -97,26 +94,26 @@ class LocalSessionRegistry {
 
 const registry = new LocalSessionRegistry();
 
-export function createAdminSession(): AdminSession {
-	return registry.createAdmin();
+export async function createAdminSession(): Promise<AdminSession> {
+	return await registry.createAdmin();
 }
 
-export function createGroupSession(groupId: string): GroupSession {
-	return registry.createGroup(groupId);
+export async function createGroupSession(groupId: string): Promise<GroupSession> {
+	return await registry.createGroup(groupId);
 }
 
-export function getAdminSession(sessionId: string | undefined): AdminSession | null {
-	const session = registry.get(sessionId);
+export async function getAdminSession(sessionId: string | undefined): Promise<AdminSession | null> {
+	const session = await registry.get(sessionId);
 	return session?.type === 'admin' ? session : null;
 }
 
-export function getGroupSession(sessionId: string | undefined, groupId: string): GroupSession | null {
-	const session = registry.get(sessionId);
+export async function getGroupSession(sessionId: string | undefined, groupId: string): Promise<GroupSession | null> {
+	const session = await registry.get(sessionId);
 	return session?.type === 'group' && session.groupId === groupId ? session : null;
 }
 
-export function revokeSession(sessionId: string | undefined): void {
-	registry.revoke(sessionId);
+export async function revokeSession(sessionId: string | undefined): Promise<void> {
+	await registry.revoke(sessionId);
 }
 
 export function sessionCookieOptions(path = '/'): {

@@ -21,21 +21,21 @@ function assertNoExcludedAssignment(
 	}
 }
 
-test('aplica las incompatibilidades globales de perfiles al crear y generar una edición', () => {
+test('aplica las incompatibilidades globales de perfiles al crear y generar una edición', async () => {
 	context.seed('group-profiles', [
 		{ displayName: 'Ana', id: 'ana' },
 		{ displayName: 'Beto', id: 'beto' },
 		{ displayName: 'Carla', id: 'carla' },
 		{ displayName: 'Dani', id: 'dani' },
 	]);
-	assert.equal(context.participants.setLocalParticipantExclusions('ana', 'group-profiles', ['beto']), true);
+	assert.equal(await context.participants.setLocalParticipantExclusions('ana', 'group-profiles', ['beto']), true);
 
-	const edition = context.editions.createLocalEdition('group-profiles', 2026);
+	const edition = await context.editions.createLocalEdition('group-profiles', 2026);
 	assert.ok(edition);
 	assert.equal(edition.exclusions.length, 1);
-	assert.equal(context.editions.generateLocalEdition(edition.id).ok, true);
+	assert.equal((await context.editions.generateLocalEdition(edition.id)).ok, true);
 
-	const generated = context.editions.findLocalEdition(edition.id);
+	const generated = await context.editions.findLocalEdition(edition.id);
 	assert.ok(generated);
 	const participantIdByProfileId = new Map(generated.participants.map((participant) => [participant.profileId, participant.id]));
 	assertNoExcludedAssignment(
@@ -45,25 +45,25 @@ test('aplica las incompatibilidades globales de perfiles al crear y generar una 
 	);
 });
 
-test('aplica las incompatibilidades configuradas solo para una edición al generar el sorteo', () => {
+test('aplica las incompatibilidades configuradas solo para una edición al generar el sorteo', async () => {
 	context.seed('group-edition', [
 		{ displayName: 'Elena', id: 'elena' },
 		{ displayName: 'Fabián', id: 'fabian' },
 		{ displayName: 'Gloria', id: 'gloria' },
 		{ displayName: 'Hugo', id: 'hugo' },
 	]);
-	const edition = context.editions.createLocalEdition('group-edition', 2026);
+	const edition = await context.editions.createLocalEdition('group-edition', 2026);
 	assert.ok(edition);
 	const [first, second] = edition.participants;
 	assert.ok(first && second);
-	assert.ok(context.editions.setLocalEditionExclusions(edition.id, [{
+	assert.ok(await context.editions.setLocalEditionExclusions(edition.id, [{
 		firstParticipantId: first.id,
 		secondParticipantId: second.id,
 	}]));
-	assert.equal(context.editions.generateLocalEdition(edition.id).ok, true);
+	assert.equal((await context.editions.generateLocalEdition(edition.id)).ok, true);
 
-	const generated = context.editions.findLocalEdition(edition.id);
+	const generated = await context.editions.findLocalEdition(edition.id);
 	assert.ok(generated);
 	assertNoExcludedAssignment(generated.assignments, first.id, second.id);
-	assert.equal(context.participants.listLocalParticipantExclusions('elena', 'group-edition').length, 0);
+	assert.equal((await context.participants.listLocalParticipantExclusions('elena', 'group-edition')).length, 0);
 });

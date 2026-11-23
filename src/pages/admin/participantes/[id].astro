@@ -11,12 +11,12 @@ import {
 import { participantVisibleName } from '../../../lib/domain/participant.ts';
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
 
-if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+if (!await getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
 	return Astro.redirect('/admin');
 }
 
-const participant = findLocalParticipant(Astro.params.id ?? '');
-const group = participant ? findLocalGroup(Astro.url.searchParams.get('family') ?? '') : null;
+const participant = await findLocalParticipant(Astro.params.id ?? '');
+const group = participant ? await findLocalGroup(Astro.url.searchParams.get('family') ?? '') : null;
 const isValidContext = participant !== null && group !== null && participant.groupId === group.id;
 const hasValidationError = Astro.url.searchParams.get('error') === 'validation';
 const hasProfileUpdate = Astro.url.searchParams.get('updated') === 'profile';
@@ -24,9 +24,9 @@ const hasExclusionError = Astro.url.searchParams.get('error') === 'exclusions';
 const hasExclusionsUpdate = Astro.url.searchParams.get('updated') === 'exclusions';
 const hasGiftError = Astro.url.searchParams.get('error') === 'gifts';
 const hasGiftsUpdate = Astro.url.searchParams.get('updated') === 'gifts';
-const groupParticipants = group ? listLocalParticipants(group.id) : [];
-const excludedParticipantIds = participant && group ? new Set(listLocalParticipantExclusions(participant.id, group.id)) : new Set<string>();
-const giftIdeas = participant && group ? listLocalGiftIdeas(group.id, participant.id) : [];
+const groupParticipants = group ? await listLocalParticipants(group.id) : [];
+const excludedParticipantIds = participant && group ? new Set(await listLocalParticipantExclusions(participant.id, group.id)) : new Set<string>();
+const giftIdeas = participant && group ? await listLocalGiftIdeas(group.id, participant.id) : [];
 
 if (!isValidContext) {
 	Astro.response.status = 404;

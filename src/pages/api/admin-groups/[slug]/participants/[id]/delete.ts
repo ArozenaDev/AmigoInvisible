@@ -5,18 +5,18 @@ import { removeLocalParticipant } from '../../../../../../lib/server/participant
 import { hasSameOrigin } from '../../../../../../lib/server/request-security.ts';
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../../../../lib/server/sessions.ts';
 
-export const POST: APIRoute = ({ params, request, cookies, redirect }) => {
-	if (!hasSameOrigin(request) || !getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+export const POST: APIRoute = async ({ params, request, cookies, redirect }) => {
+	if (!hasSameOrigin(request) || !await getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
 		return new Response(null, { status: 403 });
 	}
 
 	const slug = params.slug ?? '';
-	const group = findLocalGroup(slug);
+	const group = await findLocalGroup(slug);
 	if (!group || group.archivedAt !== null) {
 		return new Response(null, { status: 404 });
 	}
 
-	return removeLocalParticipant(params.id ?? '', group.id)
+	return await removeLocalParticipant(params.id ?? '', group.id)
 		? redirect(`/admin/participantes?family=${encodeURIComponent(slug)}&deleted=participant`, 303)
 		: redirect(`/admin/participantes?family=${encodeURIComponent(slug)}&error=delete`, 303);
 };

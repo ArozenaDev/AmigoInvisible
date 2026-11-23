@@ -71,7 +71,7 @@ function persistLocalData(data: LocalDataState): void {
 	renameSync(temporaryPath, LOCAL_DATA_PATH);
 }
 
-function emptyLocalData(): LocalDataState {
+export function emptyLocalData(): LocalDataState {
 	return {
 		editions: [],
 		exclusionPairs: [],
@@ -83,7 +83,7 @@ function emptyLocalData(): LocalDataState {
 	};
 }
 
-function isLocalDataState(value: unknown): value is LocalDataState {
+export function isLocalDataState(value: unknown): value is LocalDataState {
 	if (!isRecord(value) || value.schemaVersion !== 5) {
 		return false;
 	}
@@ -104,7 +104,7 @@ function isLocalDataState(value: unknown): value is LocalDataState {
 	);
 }
 
-function migrateLocalData(value: unknown): unknown {
+export function migrateLocalData(value: unknown): unknown {
 	let migrated = value;
 	if (isRecord(migrated) && migrated.schemaVersion === 1) {
 		migrated = {
