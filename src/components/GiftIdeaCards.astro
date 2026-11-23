@@ -1,0 +1,33 @@
+---
+export interface GiftIdea {
+	affiliateUrl: string;
+	imageUrl: string;
+	title: string;
+}
+
+interface Props {
+	ideas: GiftIdea[];
+}
+
+const { ideas } = Astro.props;
+---
+
+{ideas.length > 0 && (
+	<section class="gift-ideas" aria-labelledby="gift-ideas-title">
+		<div class="gift-ideas-heading">
+			<p class="section-kicker">Para inspirarte</p>
+			<h2 id="gift-ideas-title">Ideas para regalar</h2>
+			<p>Estos enlaces son sugerencias personales y pueden cambiarse desde administración.</p>
+		</div>
+		<div class="gift-grid">
+			{ideas.map((idea) => (
+				<a class="gift-card" href={idea.affiliateUrl} target="_blank" rel="sponsored noopener noreferrer">
+					<img src={idea.imageUrl} alt="" loading="lazy" />
+					<span>{idea.title}</span>
+					<small>Ver enlace externo <span aria-hidden="true">↗</span></small>
+				</a>
+			))}
+		</div>
+		<p class="affiliate-notice">Algunos enlaces pueden ser enlaces de afiliado.</p>
+	</section>
+)}

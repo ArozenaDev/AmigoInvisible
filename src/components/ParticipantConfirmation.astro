@@ -1,0 +1,18 @@
+---
+interface Props {
+	visibleName: string;
+}
+
+const { visibleName } = Astro.props;
+---
+
+<section class="confirmation-card" aria-labelledby="confirmation-title">
+	<div class="confirmation-mark" aria-hidden="true">✦</div>
+	<p class="section-kicker">Antes de continuar</p>
+	<h1 id="confirmation-title">¿Eres {visibleName}?</h1>
+	<p>Al confirmar, podrás descubrir tu resultado una única vez.</p>
+	<div class="confirmation-actions">
+		<button class="secondary-button" type="button">Cancelar</button>
+		<button class="primary-button" type="submit">Confirmar<span aria-hidden="true">→</span></button>
+	</div>
+</section>

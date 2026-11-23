@@ -1,0 +1,43 @@
+---
+import AdminShell from '../../../components/AdminShell.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { listLocalGroups } from '../../../lib/server/group-directory.ts';
+import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
+
+if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+	return Astro.redirect('/admin');
+}
+
+const groups = listLocalGroups();
+const activeGroups = groups.filter((group) => group.archivedAt === null);
+const archivedGroups = groups.filter((group) => group.archivedAt !== null);
+---
+
+<BaseLayout title="Familias · Administración">
+	<AdminShell active="familias">
+		<section class="admin-section-header">
+			<div><p class="section-kicker">Familias</p><h1>Familias y grupos</h1><p>Configura el acceso, presupuesto y edición activa de cada familia.</p></div>
+			<a class="primary-button" href="/admin/familias/nueva">Nueva familia<span aria-hidden="true">→</span></a>
+		</section>
+		{groups.length === 0 ? (
+			<section class="admin-empty-state" aria-label="Sin familias configuradas">
+				<div class="empty-state-icon" aria-hidden="true">⌂</div>
+				<h2>Aún no hay familias.</h2>
+				<p>Crea la primera familia para añadir participantes y preparar su sorteo.</p>
+				<a class="text-button" href="/admin/familias/nueva">Crear una familia <span aria-hidden="true">→</span></a>
+			</section>
+		) : (
+			<div class="group-list">
+				{activeGroups.map((group) => (
+					<article class="group-row">
+						<div><p class="group-row-label">Familia activa</p><h2>{group.name}</h2><p>/{group.slug}{group.suggestedBudgetAmount !== null && ` · ${group.suggestedBudgetAmount.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}`}</p></div>
+						<div class="group-row-actions"><a class="quiet-link" href={`/admin/familias/${group.slug}`}>Configurar</a><form action={`/api/admin-groups/${group.slug}/archive`} method="post"><button class="danger-link" type="submit">Archivar</button></form></div>
+					</article>
+				))}
+				{archivedGroups.length > 0 && (
+					<section class="archived-groups" aria-labelledby="archived-title"><h2 id="archived-title">Archivadas</h2>{archivedGroups.map((group) => (<article class="group-row group-row-archived"><div><h3>{group.name}</h3><p>/{group.slug}</p></div><form action={`/api/admin-groups/${group.slug}/restore`} method="post"><button class="quiet-button" type="submit">Restaurar</button></form></article>))}</section>
+				)}
+			</div>
+		)}
+	</AdminShell>
+</BaseLayout>

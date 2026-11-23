@@ -1,16 +1,48 @@
 ---
+import Brand from '../components/Brand.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<BaseLayout title="Amigo Invisible · Sorteos privados">
+	<main class="home-page">
+		<div class="home-glow home-glow-left" aria-hidden="true"></div>
+		<div class="home-glow home-glow-right" aria-hidden="true"></div>
+
+		<header class="site-header">
+			<Brand />
+			<a class="admin-link" href="/admin">
+				<span>Administración</span>
+				<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 7.5V6a3.75 3.75 0 0 0-7.5 0v1.5M6.5 7.5h11a1 1 0 0 1 1 1v9.75a1 1 0 0 1-1-1h-11a1 1 0 0 1-1-1V8.5a1 1 0 0 1 1-1Z" /></svg>
+			</a>
+		</header>
+
+		<section class="home-hero" aria-labelledby="home-title">
+			<div class="hero-copy">
+				<p class="section-kicker">Un regalo, una sorpresa</p>
+				<h1 id="home-title">El amigo invisible, bien organizado.</h1>
+				<p class="hero-description">Un lugar privado para que cada familia prepare su sorteo, descubra su regalo y guarde el recuerdo de cada edición.</p>
+				<a class="text-button" href="#como-funciona">Así funciona <span aria-hidden="true">↓</span></a>
+			</div>
+
+			<aside class="hero-message" aria-label="Acceso privado">
+				<div class="message-seal" aria-hidden="true">✦</div>
+				<p class="message-label">Tu sorteo es privado</p>
+				<p class="message-copy">Recibirás un enlace personal de tu familia para entrar y participar.</p>
+				<div class="message-rule" aria-hidden="true"></div>
+				<p class="message-note">No mostramos familias ni participantes desde esta página.</p>
+			</aside>
+		</section>
+
+		<section id="como-funciona" class="steps-section" aria-labelledby="steps-title">
+			<div class="steps-heading">
+				<p class="section-kicker">Sencillo y privado</p>
+				<h2 id="steps-title">Todo lo importante, en el momento justo.</h2>
+			</div>
+			<ol class="steps-list">
+				<li><span>01</span><div><h3>Accede a tu familia</h3><p>Entra mediante la dirección privada y la contraseña compartida.</p></div></li>
+				<li><span>02</span><div><h3>Confirma tu nombre</h3><p>Busca tu nombre y confirma tu identidad antes de participar.</p></div></li>
+				<li><span>03</span><div><h3>Descubre tu sorpresa</h3><p>Ve a quién te toca una única vez y consulta sus ideas de regalo.</p></div></li>
+			</ol>
+		</section>
+	</main>
+</BaseLayout>

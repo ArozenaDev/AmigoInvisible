@@ -1,0 +1,70 @@
+---
+import AdminShell from '../../../components/AdminShell.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { findLocalGroup, listLocalGroups } from '../../../lib/server/group-directory.ts';
+import {
+	listLocalParticipantExclusions,
+	listLocalParticipants,
+} from '../../../lib/server/participant-directory.ts';
+import { participantVisibleName } from '../../../lib/domain/participant.ts';
+import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
+
+if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+	return Astro.redirect('/admin');
+}
+
+const groups = listLocalGroups().filter((group) => group.archivedAt === null);
+const selectedSlug = Astro.url.searchParams.get('family') ?? '';
+const selectedGroup = findLocalGroup(selectedSlug);
+const participants = selectedGroup ? listLocalParticipants(selectedGroup.id) : [];
+const participantNamesById = new Map(participants.map((participant) => [participant.id, participantVisibleName(participant)]));
+const exclusionsByParticipantId = new Map(
+	participants.map((participant) => [
+		participant.id,
+		listLocalParticipantExclusions(participant.id, participant.groupId)
+			.map((excludedParticipantId) => participantNamesById.get(excludedParticipantId))
+			.filter((name): name is string => name !== undefined),
+	]),
+);
+const participantRows = participants.map((participant) => ({
+	exclusions: exclusionsByParticipantId.get(participant.id) ?? [],
+	participant,
+}));
+const hasValidationError = Astro.url.searchParams.get('error') === 'validation';
+const hasDeleteError = Astro.url.searchParams.get('error') === 'delete';
+const hasParticipantDeleted = Astro.url.searchParams.get('deleted') === 'participant';
+---
+
+<BaseLayout title="Participantes · Administración">
+	<AdminShell active="participantes">
+		<section class="admin-section-header">
+			<div><p class="section-kicker">Participantes</p><h1>Personas e ideas</h1><p>Gestiona perfiles reutilizables, incompatibilidades e ideas de regalo dentro de una familia.</p></div>
+		</section>
+		{groups.length > 0 && (
+			<form class="family-filter" action="/admin/participantes" method="get"><label for="participant-family">Familia</label><select id="participant-family" name="family" onchange="this.form.requestSubmit()"><option value="">Selecciona una familia</option>{groups.map((group) => <option value={group.slug} selected={group.slug === selectedGroup?.slug}>{group.name}</option>)}</select></form>
+		)}
+		{selectedGroup ? (
+			<>
+				{hasDeleteError && <p class="form-error" role="alert">No se puede eliminar este perfil porque todavía forma parte de alguna edición. Retíralo primero desde la configuración de esas ediciones.</p>}
+				{hasParticipantDeleted && <p class="form-success" role="status">El perfil se ha eliminado.</p>}
+				<div class="participants-workspace">
+				<section class="participant-list-section" aria-labelledby="participant-list-title"><div class="section-line"><h2 id="participant-list-title">Participantes</h2><span>{participants.length}</span></div>{participants.length === 0 ? <p class="list-empty">Aún no hay perfiles. Añade la primera persona desde el formulario.</p> : <ul class="participant-list">{participantRows.map(({ participant, exclusions }) => <li><span class="participant-avatar" aria-hidden="true">{participant.displayName.slice(0, 1).toUpperCase()}</span><div><strong>{participantVisibleName(participant)}</strong><small>{participant.accessPinHash ? 'PIN configurado' : 'PIN pendiente'} · {exclusions.length > 0 ? `No puede tocar con: ${exclusions.join(', ')}` : 'Sin incompatibilidades configuradas'}</small></div><div class="participant-row-actions"><a class="quiet-link" href={`/admin/participantes/${participant.id}?family=${selectedGroup.slug}`}>Editar</a><form class="participant-delete-form" data-participant-name={participantVisibleName(participant)} action={`/api/admin-groups/${selectedGroup.slug}/participants/${participant.id}/delete`} method="post"><button class="danger-link" type="submit">Eliminar</button></form></div></li>)}</ul>}</section>
+				<section class="participant-create-card" aria-labelledby="add-participant-title"><p class="section-kicker">Nuevo perfil</p><h2 id="add-participant-title">Añade una persona</h2><p>El alias solo es necesario para distinguir nombres repetidos.</p>{hasValidationError && <p class="form-error" role="alert">Revisa el nombre. El alias es opcional.</p>}<form class="group-form" action={`/api/admin-groups/${selectedGroup.slug}/participants`} method="post"><label for="participant-name">Nombre</label><input id="participant-name" name="displayName" type="text" required /><label for="participant-alias">Alias (opcional)</label><input id="participant-alias" name="alias" type="text" /><button class="primary-button" type="submit">Añadir participante<span aria-hidden="true">→</span></button></form></section>
+				</div>
+			</>
+		) : (
+			<section class="context-empty-state" aria-label="Selecciona una familia"><div class="empty-state-icon" aria-hidden="true">⌕</div><h2>Elige una familia primero.</h2><p>Los participantes siempre pertenecen al contexto privado de una familia.</p><a class="text-button" href="/admin/familias">Ir a familias <span aria-hidden="true">→</span></a></section>
+		)}
+	</AdminShell>
+</BaseLayout>
+
+<script>
+	document.querySelectorAll<HTMLFormElement>('.participant-delete-form').forEach((form) => {
+		form.addEventListener('submit', (event) => {
+			const participantName = form.dataset.participantName ?? 'este perfil';
+			if (!window.confirm(`Se eliminará el perfil de ${participantName}. Esta acción no se puede deshacer.`)) {
+				event.preventDefault();
+			}
+		});
+	});
+</script>

@@ -1,0 +1,100 @@
+---
+import AdminShell from '../../../components/AdminShell.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { findLocalGroup } from '../../../lib/server/group-directory.ts';
+import { listLocalGiftIdeas } from '../../../lib/server/gift-idea-directory.ts';
+import {
+	findLocalParticipant,
+	listLocalParticipantExclusions,
+	listLocalParticipants,
+} from '../../../lib/server/participant-directory.ts';
+import { participantVisibleName } from '../../../lib/domain/participant.ts';
+import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
+
+if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+	return Astro.redirect('/admin');
+}
+
+const participant = findLocalParticipant(Astro.params.id ?? '');
+const group = participant ? findLocalGroup(Astro.url.searchParams.get('family') ?? '') : null;
+const isValidContext = participant !== null && group !== null && participant.groupId === group.id;
+const hasValidationError = Astro.url.searchParams.get('error') === 'validation';
+const hasProfileUpdate = Astro.url.searchParams.get('updated') === 'profile';
+const hasExclusionError = Astro.url.searchParams.get('error') === 'exclusions';
+const hasExclusionsUpdate = Astro.url.searchParams.get('updated') === 'exclusions';
+const hasGiftError = Astro.url.searchParams.get('error') === 'gifts';
+const hasGiftsUpdate = Astro.url.searchParams.get('updated') === 'gifts';
+const groupParticipants = group ? listLocalParticipants(group.id) : [];
+const excludedParticipantIds = participant && group ? new Set(listLocalParticipantExclusions(participant.id, group.id)) : new Set<string>();
+const giftIdeas = participant && group ? listLocalGiftIdeas(group.id, participant.id) : [];
+
+if (!isValidContext) {
+	Astro.response.status = 404;
+}
+---
+
+<BaseLayout title="Ficha de participante · Administración">
+	<AdminShell active="participantes">
+		{isValidContext && participant && group ? (
+			<>
+				<section class="admin-section-header"><div><p class="section-kicker">{group.name}</p><h1>{participantVisibleName(participant)}</h1><p>Perfil reutilizable: podrá incluirse o excluirse de cada edición sin perder sus ideas.</p></div><a class="quiet-link" href={`/admin/participantes?family=${group.slug}`}>Volver a participantes</a></section>
+				<div class="participant-detail-grid">
+					<section class="settings-card"><p class="settings-label">Datos personales</p><h2>Nombre y alias</h2><p>El alias es opcional; úsalo únicamente para distinguir nombres repetidos.</p>{hasValidationError && <p class="form-error" role="alert">Revisa el nombre y el alias.</p>}{hasProfileUpdate && <p class="form-success" role="status">Los datos del perfil se han guardado.</p>}<form class="group-form" action={`/api/admin-groups/${group.slug}/participants/${participant.id}`} method="post"><label for="participant-name">Nombre</label><input id="participant-name" name="displayName" type="text" value={participant.displayName} required /><label for="participant-alias">Alias (opcional)</label><input id="participant-alias" name="alias" type="text" value={participant.alias ?? ''} /><button class="primary-button" type="submit">Guardar cambios</button></form></section>
+					<section class="settings-card"><p class="settings-label">Incompatibilidades</p><h2>Quién no puede tocar</h2><p>Estas exclusiones son siempre bidireccionales. Mantén pulsado ⌘ o Ctrl para seleccionar varias personas.</p>{hasExclusionError && <p class="form-error" role="alert">No se han podido guardar las incompatibilidades.</p>}{hasExclusionsUpdate && <p class="form-success" role="status">Las incompatibilidades se han guardado.</p>}<form class="group-form" action={`/api/admin-groups/${group.slug}/participants/${participant.id}/exclusions`} method="post"><label for="participant-exclusions">Participantes excluidos</label><select id="participant-exclusions" name="excludedParticipantIds" multiple size="6">{groupParticipants.filter((candidate) => candidate.id !== participant.id).map((candidate) => <option value={candidate.id} selected={excludedParticipantIds.has(candidate.id)}>{participantVisibleName(candidate)}</option>)}</select><button class="secondary-button" type="submit">Guardar incompatibilidades</button></form></section>
+					<section class="settings-card" data-pin-card><p class="settings-label">Acceso individual</p><h2>PIN personal</h2><p data-pin-status>{participant.accessPinHash ? 'PIN configurado. Puedes regenerarlo si es necesario.' : 'Todavía no hay PIN. Genéralo y entrégalo personalmente.'}</p><form class="group-form participant-pin-form" action={`/api/admin-groups/${group.slug}/participants/${participant.id}/pin`} method="post"><button class="secondary-button" type="submit">{participant.accessPinHash ? 'Regenerar PIN' : 'Generar PIN'}</button></form><p class="form-error" data-pin-error hidden role="alert"></p><div class="pin-once-notice" data-pin-notice hidden><p>Entrega este PIN personalmente. Por seguridad, solo se muestra ahora.</p><strong data-pin-value></strong><button class="quiet-button" data-copy-pin type="button">Copiar PIN</button></div></section>
+					<section class="settings-card participant-gift-ideas"><p class="settings-label">Ideas de regalo</p><h2>Enlaces y sugerencias</h2><p>Añade un título, un enlace de afiliado y una URL HTTPS de imagen externa. Estas ideas pertenecen al perfil y podrán actualizarse después.</p>{hasGiftError && <p class="form-error" role="alert">Revisa el título y las URLs HTTPS de la idea.</p>}{hasGiftsUpdate && <p class="form-success" role="status">Las ideas de regalo se han guardado.</p>}{giftIdeas.length === 0 ? <p class="list-empty">Aún no hay ideas de regalo.</p> : <ul class="admin-gift-idea-list">{giftIdeas.map((idea) => <li><details><summary>{idea.title}</summary><a class="gift-card admin-gift-preview" href={idea.affiliateUrl} target="_blank" rel="sponsored noopener noreferrer"><img src={idea.imageUrl} alt="" loading="lazy" referrerpolicy="no-referrer" /><span>{idea.title}</span><small>Previsualización · enlace externo <span aria-hidden="true">↗</span></small></a><form class="group-form" action={`/api/admin-groups/${group.slug}/participants/${participant.id}/gift-ideas/${idea.id}`} method="post"><label for={`gift-title-${idea.id}`}>Título</label><input id={`gift-title-${idea.id}`} name="title" type="text" maxlength="160" value={idea.title} required /><label for={`gift-affiliate-${idea.id}`}>Enlace de afiliado</label><input id={`gift-affiliate-${idea.id}`} name="affiliateUrl" type="url" value={idea.affiliateUrl} required /><label for={`gift-image-${idea.id}`}>URL HTTPS de imagen</label><input id={`gift-image-${idea.id}`} name="imageUrl" type="url" value={idea.imageUrl} required /><button class="secondary-button" type="submit">Guardar idea</button></form><form class="gift-idea-delete-form" data-gift-title={idea.title} action={`/api/admin-groups/${group.slug}/participants/${participant.id}/gift-ideas/${idea.id}`} method="post"><input name="intent" type="hidden" value="delete" /><button class="danger-link" type="submit">Eliminar idea</button></form></details></li>)}</ul>}<h3>Añadir idea</h3><form class="group-form" action={`/api/admin-groups/${group.slug}/participants/${participant.id}/gift-ideas`} method="post"><label for="gift-title">Título</label><input id="gift-title" name="title" type="text" maxlength="160" required /><label for="gift-affiliate">Enlace de afiliado</label><input id="gift-affiliate" name="affiliateUrl" type="url" placeholder="https://…" required /><label for="gift-image">URL HTTPS de imagen</label><input id="gift-image" name="imageUrl" type="url" placeholder="https://…" required /><button class="primary-button" type="submit">Añadir idea</button></form></section>
+				</div>
+			</>
+		) : (
+			<section class="context-empty-state"><div class="empty-state-icon" aria-hidden="true">?</div><h2>Este perfil no está disponible.</h2><a class="text-button" href="/admin/participantes">Volver a participantes <span aria-hidden="true">→</span></a></section>
+		)}
+	</AdminShell>
+</BaseLayout>
+
+<script>
+	document.querySelectorAll<HTMLFormElement>('.gift-idea-delete-form').forEach((form) => {
+		form.addEventListener('submit', (event) => {
+			const title = form.dataset.giftTitle ?? 'esta idea';
+			if (!window.confirm(`Se eliminará la idea “${title}”. Esta acción no se puede deshacer.`)) {
+				event.preventDefault();
+			}
+		});
+	});
+
+	document.querySelectorAll<HTMLFormElement>('.participant-pin-form').forEach((form) => {
+		form.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			const card = form.closest<HTMLElement>('[data-pin-card]');
+			const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+			const error = card?.querySelector<HTMLElement>('[data-pin-error]');
+			const notice = card?.querySelector<HTMLElement>('[data-pin-notice]');
+			const value = card?.querySelector<HTMLElement>('[data-pin-value]');
+			if (button) button.disabled = true;
+			if (error) error.hidden = true;
+			try {
+				const response = await fetch(form.action, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } });
+				const payload = await response.json() as { message?: string; pin?: string };
+				if (!response.ok || !payload.pin) throw new Error(payload.message ?? 'No ha sido posible generar el PIN.');
+				if (value) value.textContent = payload.pin;
+				if (notice) notice.hidden = false;
+				if (button) button.textContent = 'Regenerar PIN';
+			} catch (reason) {
+				if (error) {
+					error.textContent = reason instanceof Error ? reason.message : 'No ha sido posible generar el PIN.';
+					error.hidden = false;
+				}
+			} finally {
+				if (button) button.disabled = false;
+			}
+		});
+	});
+
+	document.querySelectorAll<HTMLButtonElement>('[data-copy-pin]').forEach((button) => {
+		button.addEventListener('click', async () => {
+			const value = button.closest<HTMLElement>('[data-pin-card]')?.querySelector<HTMLElement>('[data-pin-value]')?.textContent;
+			if (!value || !navigator.clipboard) return;
+			await navigator.clipboard.writeText(value);
+			button.textContent = 'PIN copiado';
+		});
+	});
+</script>

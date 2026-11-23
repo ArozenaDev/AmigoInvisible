@@ -1,0 +1,80 @@
+---
+import AdminShell from '../../components/AdminShell.astro';
+import Brand from '../../components/Brand.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { listLocalEditions } from '../../lib/server/edition-directory.ts';
+import { listLocalGroups } from '../../lib/server/group-directory.ts';
+import { listLocalParticipants } from '../../lib/server/participant-directory.ts';
+import { getAdminSession, ADMIN_SESSION_COOKIE } from '../../lib/server/sessions.ts';
+
+const session = getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value);
+const hasLoginError = Astro.url.searchParams.get('error') === 'login';
+const groups = session ? listLocalGroups() : [];
+const activeGroups = groups.filter((group) => group.archivedAt === null);
+const editions = activeGroups.flatMap((group) => listLocalEditions(group.id));
+const participantCount = activeGroups.reduce((total, group) => total + listLocalParticipants(group.id).length, 0);
+const activeDrawCount = activeGroups.filter((group) =>
+	group.activeEditionId !== null && editions.some((edition) => edition.id === group.activeEditionId && edition.status === 'active'),
+).length;
+---
+
+<BaseLayout title="Acceso de administración · Amigo Invisible">
+	{
+		session ? (
+			<AdminShell active="resumen">
+				<section class="admin-summary" aria-labelledby="admin-summary-title">
+					<p class="section-kicker">Resumen</p>
+					<h1 id="admin-summary-title">Tu organización, de un vistazo.</h1>
+					<p>Gestiona las familias, prepara sus ediciones y activa cada sorteo cuando esté listo para participar.</p>
+					<a class="primary-button" href="/admin/familias/nueva">Crear una familia<span aria-hidden="true">→</span></a>
+				</section>
+
+				<section class="admin-overview-grid" aria-label="Resumen de la administración">
+					<a class="admin-overview-card" href="/admin/familias">
+						<span>Familias activas</span>
+						<strong>{activeGroups.length}</strong>
+						<small>{groups.length - activeGroups.length > 0 ? `${groups.length - activeGroups.length} archivada${groups.length - activeGroups.length === 1 ? '' : 's'}` : 'Gestionar familias'}</small>
+					</a>
+					<a class="admin-overview-card" href="/admin/participantes">
+						<span>Perfiles</span>
+						<strong>{participantCount}</strong>
+						<small>En familias activas</small>
+					</a>
+					<a class="admin-overview-card" href="/admin/sorteos">
+						<span>Ediciones</span>
+						<strong>{editions.length}</strong>
+						<small>{activeDrawCount} sorteo{activeDrawCount === 1 ? '' : 's'} activo{activeDrawCount === 1 ? '' : 's'}</small>
+					</a>
+				</section>
+			</AdminShell>
+		) : (
+			<main class="auth-page">
+				<header class="auth-header">
+					<Brand />
+					<a class="quiet-link" href="/">Volver al inicio</a>
+				</header>
+
+				<section class="admin-login" aria-labelledby="admin-login-title">
+					<div class="admin-login-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 7.5V6a3.75 3.75 0 0 0-7.5 0v1.5M6.5 7.5h11a1 1 0 0 1 1 1v9.75a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V8.5a1 1 0 0 1 1-1Z" />
+							<path stroke-linecap="round" d="M12 12v3" />
+						</svg>
+					</div>
+					<p class="section-kicker">Administración</p>
+					<h1 id="admin-login-title">Gestiona tus sorteos</h1>
+					<p class="auth-description">Accede para administrar familias, participantes, ediciones e histórico.</p>
+
+					{hasLoginError && <p class="form-error" role="alert">No ha sido posible iniciar sesión.</p>}
+					<form class="admin-login-form" action="/api/admin-session" method="post">
+						<label for="admin-username">Usuario</label>
+						<input id="admin-username" name="username" type="text" autocomplete="username" required />
+						<label for="admin-password">Contraseña</label>
+						<input id="admin-password" name="password" type="password" autocomplete="current-password" required />
+						<button class="primary-button" type="submit">Entrar al panel<span aria-hidden="true">→</span></button>
+					</form>
+				</section>
+			</main>
+		)
+	}
+</BaseLayout>

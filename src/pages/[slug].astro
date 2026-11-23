@@ -1,0 +1,79 @@
+---
+import AccessCard from '../components/AccessCard.astro';
+import Brand from '../components/Brand.astro';
+import ParticipantWelcome from '../components/ParticipantWelcome.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { findLocalEdition } from '../lib/server/edition-directory.ts';
+import { findAvailableLocalGroup } from '../lib/server/group-directory.ts';
+import { getGroupSession, GROUP_SESSION_COOKIE } from '../lib/server/sessions.ts';
+
+const slug = Astro.params.slug ?? '';
+const isValidSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
+const group = isValidSlug ? findAvailableLocalGroup(slug) : null;
+if (!group) {
+	// Archived and unknown groups deliberately share this neutral response.
+	Astro.response.status = 404;
+}
+
+const session = group ? getGroupSession(Astro.cookies.get(GROUP_SESSION_COOKIE)?.value, group.id) : null;
+const activeEdition = group?.activeEditionId ? findLocalEdition(group.activeEditionId) : null;
+const canParticipate = activeEdition?.groupId === group?.id && activeEdition.status === 'active';
+const hasAccessError = Astro.url.searchParams.get('error') === 'access';
+const hasLoggedOut = Astro.url.searchParams.get('logged-out') === '1';
+---
+
+<BaseLayout title="Acceso al sorteo · Amigo Invisible">
+	<main class="family-access-page">
+		<header class="access-header">
+			<Brand />
+			{session && group ? (
+				<form action={`/${slug}/logout`} method="post"><button class="quiet-button" type="submit">Cerrar sesión</button></form>
+			) : (
+				<a class="quiet-link" href="/">Volver al inicio</a>
+			)}
+		</header>
+
+		{
+			!group ? (
+				<section class="family-ready" aria-labelledby="unavailable-title">
+					<p class="section-kicker">Acceso no disponible</p>
+					<h1 id="unavailable-title">Este sorteo no está disponible.</h1>
+					<p>Consulta con el administrador si necesitas acceder.</p>
+				</section>
+			) : session ? (
+				canParticipate && activeEdition ? (
+					<ParticipantWelcome
+						budgetAmount={group.suggestedBudgetAmount}
+						groupName={group.name}
+						revealEndpoint={`/${slug}/reveal`}
+						searchEndpoint={`/${slug}/participants`}
+						year={activeEdition.year}
+					/>
+				) : (
+					<section class="family-ready" aria-labelledby="family-ready-title">
+						<p class="section-kicker">Acceso confirmado</p>
+						<h1 id="family-ready-title">Ya estás dentro.</h1>
+						<p>La familia <strong>{group.name}</strong> todavía no tiene una edición activa. Cuando el administrador la publique y active, podrás participar aquí.</p>
+					</section>
+				)
+			) : (
+				<section class="family-access-content" aria-labelledby="family-access-title">
+					<div class="access-intro">
+						<p class="section-kicker">Acceso privado</p>
+						<h1 id="family-access-title">Tu sorteo está al otro lado.</h1>
+						<p>Introduce la contraseña compartida de tu familia para continuar.</p>
+					</div>
+					<div>
+						{hasLoggedOut && <p class="form-success" role="status">La sesión de esta familia se ha cerrado.</p>}
+						{hasAccessError && <p class="form-error" role="alert">No ha sido posible validar el acceso.</p>}
+						<AccessCard
+							action={`/${slug}/session`}
+							buttonLabel="Continuar"
+							caption="El acceso se mantendrá en este dispositivo durante 30 días."
+						/>
+					</div>
+				</section>
+			)
+		}
+	</main>
+</BaseLayout>

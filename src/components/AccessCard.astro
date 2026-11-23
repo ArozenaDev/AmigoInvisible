@@ -1,0 +1,28 @@
+---
+interface Props {
+	action: string;
+	buttonLabel: string;
+	caption: string;
+	passwordLabel?: string;
+}
+
+const {
+	action,
+	buttonLabel,
+	caption,
+	passwordLabel = 'Contraseña de la familia',
+} = Astro.props;
+---
+
+<form class="access-card" action={action} method="post">
+	<label for="family-password">{passwordLabel}</label>
+	<div class="password-field">
+		<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+			<rect x="4.75" y="10.25" width="14.5" height="9" rx="1.5" />
+			<path stroke-linecap="round" d="M8.25 10.25V7.5a3.75 3.75 0 0 1 7.5 0v2.75M12 14v2" />
+		</svg>
+		<input id="family-password" name="password" type="password" autocomplete="current-password" required />
+	</div>
+	<button class="primary-button" type="submit">{buttonLabel}<span aria-hidden="true">→</span></button>
+	<p class="field-caption">{caption}</p>
+</form>

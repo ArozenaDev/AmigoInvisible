@@ -1,0 +1,227 @@
+---
+interface Props {
+	budgetAmount?: number | null;
+	groupName: string;
+	revealEndpoint: string;
+	searchEndpoint: string;
+	year: number;
+}
+
+const { budgetAmount = null, groupName, revealEndpoint, searchEndpoint, year } = Astro.props;
+const title = `Sorteo ${year} del Amigo Invisible de ${groupName}`;
+---
+
+<div class="participant-flow" data-participant-flow data-reveal-endpoint={revealEndpoint} data-search-endpoint={searchEndpoint}>
+	<section class="participant-panel" data-search-panel aria-labelledby="participant-welcome-title">
+		<p class="section-kicker">Edición {year}</p>
+		<h1 id="participant-welcome-title">{title}</h1>
+		<p class="participant-lead">Selecciona tu nombre para descubrir a quién le harás el regalo.</p>
+
+		{budgetAmount !== null && (
+			<p class="budget-pill">
+				<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+					<circle cx="12" cy="12" r="8.25" />
+					<path stroke-linecap="round" d="M14.25 8.75c-.47-.5-1.2-.8-2.05-.8-1.4 0-2.4.76-2.4 1.82 0 2.57 4.65 1.17 4.65 3.73 0 1.06-1 1.83-2.42 1.83-.98 0-1.83-.36-2.35-.92M12 6.5v11" />
+				</svg>
+				Presupuesto recomendado: {budgetAmount.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+			</p>
+		)}
+
+		<form class="participant-search" data-search-form>
+			<label for="participant-query">¿Quién eres?</label>
+			<div class="search-field">
+				<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+					<circle cx="10.75" cy="10.75" r="5.75" />
+					<path stroke-linecap="round" d="m15.1 15.1 4.15 4.15" />
+				</svg>
+				<input id="participant-query" data-search-input type="search" minlength="2" autocomplete="off" placeholder="Escribe al menos 2 letras" />
+			</div>
+			<p class="field-caption" data-search-status>Las sugerencias aparecerán al escribir dos letras.</p>
+			<ul class="participant-results" data-search-results hidden aria-label="Sugerencias de participantes"></ul>
+			<button class="primary-button" data-participate-button type="submit" disabled>Participar<span aria-hidden="true">→</span></button>
+		</form>
+	</section>
+
+	<section class="confirmation-card" data-confirmation-panel hidden aria-labelledby="confirmation-title">
+		<div class="confirmation-mark" aria-hidden="true">✦</div>
+		<p class="section-kicker">Antes de continuar</p>
+		<h1 id="confirmation-title">¿Eres <span data-confirmation-name></span>?</h1>
+		<p>Introduce el PIN personal que te facilitó el administrador. Al confirmar, podrás descubrir tu resultado. Tendrás que introducir el PIN cada vez que quieras consultarlo.</p>
+		<label class="participant-pin-label" for="participant-pin">PIN de 4 dígitos</label>
+		<input id="participant-pin" class="participant-pin-input" data-participant-pin type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" autocomplete="one-time-code" />
+		<div class="confirmation-actions">
+			<button class="secondary-button" data-cancel-confirmation type="button">Cancelar</button>
+			<button class="primary-button" data-confirm-reveal type="button">Confirmar<span aria-hidden="true">→</span></button>
+		</div>
+	</section>
+
+	<section class="reveal-result" data-reveal-panel hidden aria-labelledby="result-title">
+		<div class="reveal-burst" aria-hidden="true"><span>✦</span><span>✦</span><span>✦</span></div>
+		<p class="section-kicker">Tu amigo invisible es</p>
+		<h1 id="result-title" data-recipient-name></h1>
+		<p class="result-copy">Guarda este resultado con discreción. Podrás volver a consultarlo introduciendo tu PIN mientras el sorteo siga activo.</p>
+	</section>
+	<section class="gift-ideas" data-reveal-ideas hidden aria-labelledby="gift-ideas-title">
+		<div class="gift-ideas-heading"><p class="section-kicker">Para inspirarte</p><h2 id="gift-ideas-title">Ideas para regalar</h2><p>Estos enlaces son sugerencias personales y pueden cambiarse desde administración.</p></div>
+		<div class="gift-grid" data-gift-grid></div>
+		<p class="affiliate-notice">Algunos enlaces pueden ser enlaces de afiliado.</p>
+	</section>
+	<p class="form-error participant-flow-error" data-flow-error hidden role="alert"></p>
+</div>
+
+<script>
+	interface SearchResult { id: string; visibleName: string; }
+	interface GiftIdea { affiliateUrl: string; imageUrl: string; title: string; }
+	interface RevealPayload { ideas?: GiftIdea[]; message?: string; recipientName?: string; }
+
+	const root = document.querySelector<HTMLElement>('[data-participant-flow]');
+	if (root) {
+		const searchEndpoint = root.dataset.searchEndpoint ?? '';
+		const revealEndpoint = root.dataset.revealEndpoint ?? '';
+		const searchPanel = root.querySelector<HTMLElement>('[data-search-panel]');
+		const confirmationPanel = root.querySelector<HTMLElement>('[data-confirmation-panel]');
+		const revealPanel = root.querySelector<HTMLElement>('[data-reveal-panel]');
+		const ideasPanel = root.querySelector<HTMLElement>('[data-reveal-ideas]');
+		const searchForm = root.querySelector<HTMLFormElement>('[data-search-form]');
+		const searchInput = root.querySelector<HTMLInputElement>('[data-search-input]');
+		const searchResults = root.querySelector<HTMLUListElement>('[data-search-results]');
+		const searchStatus = root.querySelector<HTMLElement>('[data-search-status]');
+		const participateButton = root.querySelector<HTMLButtonElement>('[data-participate-button]');
+		const confirmationName = root.querySelector<HTMLElement>('[data-confirmation-name]');
+		const cancelConfirmation = root.querySelector<HTMLButtonElement>('[data-cancel-confirmation]');
+		const confirmReveal = root.querySelector<HTMLButtonElement>('[data-confirm-reveal]');
+		const participantPin = root.querySelector<HTMLInputElement>('[data-participant-pin]');
+		const recipientName = root.querySelector<HTMLElement>('[data-recipient-name]');
+		const giftGrid = root.querySelector<HTMLElement>('[data-gift-grid]');
+		const flowError = root.querySelector<HTMLElement>('[data-flow-error]');
+		let selectedParticipant: SearchResult | null = null;
+		let searchTimer: number | undefined;
+
+		const showError = (message: string) => {
+			if (flowError) {
+				flowError.textContent = message;
+				flowError.hidden = false;
+			}
+		};
+		const clearError = () => {
+			if (flowError) flowError.hidden = true;
+		};
+
+		const renderResults = (participants: SearchResult[]) => {
+			if (!searchResults) return;
+			searchResults.replaceChildren();
+			for (const participant of participants) {
+				const item = document.createElement('li');
+				const button = document.createElement('button');
+				button.type = 'button';
+				button.textContent = participant.visibleName;
+				button.addEventListener('click', () => {
+					selectedParticipant = participant;
+					if (searchInput) searchInput.value = participant.visibleName;
+					if (participateButton) participateButton.disabled = false;
+					if (searchStatus) searchStatus.textContent = `Has seleccionado: ${participant.visibleName}.`;
+					searchResults.hidden = true;
+					clearError();
+				});
+				item.append(button);
+				searchResults.append(item);
+			}
+			searchResults.hidden = participants.length === 0;
+		};
+
+		const search = async () => {
+			const query = searchInput?.value.trim() ?? '';
+			selectedParticipant = null;
+			if (participateButton) participateButton.disabled = true;
+			if (query.length < 2) {
+				renderResults([]);
+				if (searchStatus) searchStatus.textContent = 'Las sugerencias aparecerán al escribir dos letras.';
+				return;
+			}
+			try {
+				const url = new URL(searchEndpoint, window.location.origin);
+				url.searchParams.set('q', query);
+				const response = await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+				const payload = await response.json() as { participants?: SearchResult[] };
+				if (!response.ok) throw new Error();
+				const participants = Array.isArray(payload.participants) ? payload.participants : [];
+				renderResults(participants);
+				if (searchStatus) searchStatus.textContent = participants.length > 0 ? 'Selecciona tu nombre.' : 'No hay coincidencias.';
+			} catch {
+				renderResults([]);
+				showError('No ha sido posible buscar participantes. Inténtalo de nuevo.');
+			}
+		};
+
+		searchInput?.addEventListener('input', () => {
+			window.clearTimeout(searchTimer);
+			searchTimer = window.setTimeout(search, 180);
+		});
+		searchForm?.addEventListener('submit', (event) => {
+			event.preventDefault();
+			if (!selectedParticipant || !confirmationPanel || !searchPanel) return;
+			if (confirmationName) confirmationName.textContent = selectedParticipant.visibleName;
+			searchPanel.hidden = true;
+			confirmationPanel.hidden = false;
+			clearError();
+		});
+		cancelConfirmation?.addEventListener('click', () => {
+			if (participantPin) participantPin.value = '';
+			if (confirmationPanel) confirmationPanel.hidden = true;
+			if (searchPanel) searchPanel.hidden = false;
+		});
+		confirmReveal?.addEventListener('click', async () => {
+			if (!selectedParticipant || !confirmReveal) return;
+			const pin = participantPin?.value ?? '';
+			if (!/^\d{4}$/.test(pin)) {
+				showError('Introduce tu PIN personal de 4 dígitos.');
+				return;
+			}
+			confirmReveal.disabled = true;
+			clearError();
+			try {
+				const formData = new FormData();
+				formData.set('participantId', selectedParticipant.id);
+				formData.set('pin', pin);
+				const response = await fetch(revealEndpoint, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' }, body: formData });
+				const payload = await response.json() as RevealPayload;
+				if (!response.ok || !payload.recipientName || !Array.isArray(payload.ideas)) {
+					throw new Error(payload.message ?? 'No ha sido posible revelar el resultado.');
+				}
+				if (recipientName) recipientName.textContent = payload.recipientName;
+				if (giftGrid) {
+					giftGrid.replaceChildren();
+					for (const idea of payload.ideas) {
+						const link = document.createElement('a');
+						link.className = 'gift-card';
+						link.href = idea.affiliateUrl;
+						link.target = '_blank';
+						link.rel = 'sponsored noopener noreferrer';
+						const image = document.createElement('img');
+						image.src = idea.imageUrl;
+						image.alt = '';
+						image.loading = 'lazy';
+						image.referrerPolicy = 'no-referrer';
+						const ideaTitle = document.createElement('span');
+						ideaTitle.textContent = idea.title;
+						const external = document.createElement('small');
+						external.textContent = 'Ver enlace externo ↗';
+						link.append(image, ideaTitle, external);
+						giftGrid.append(link);
+					}
+					if (ideasPanel) ideasPanel.hidden = payload.ideas.length === 0;
+				}
+				if (confirmationPanel) confirmationPanel.hidden = true;
+				if (participantPin) participantPin.value = '';
+				if (revealPanel) revealPanel.hidden = false;
+			} catch (error) {
+				showError(error instanceof Error ? error.message : 'No ha sido posible revelar el resultado.');
+				if (confirmationPanel) confirmationPanel.hidden = true;
+				if (participantPin) participantPin.value = '';
+				if (searchPanel) searchPanel.hidden = false;
+			} finally {
+				confirmReveal.disabled = false;
+			}
+		});
+	}
+</script>

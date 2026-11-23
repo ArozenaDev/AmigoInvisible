@@ -1,0 +1,34 @@
+---
+import Brand from './Brand.astro';
+
+type AdminSection = 'familias' | 'historico' | 'participantes' | 'resumen' | 'sorteos';
+
+interface Props {
+	active: AdminSection;
+}
+
+const { active } = Astro.props;
+
+const navigation: Array<{ href: string; id: AdminSection; label: string }> = [
+	{ href: '/admin', id: 'resumen', label: 'Resumen' },
+	{ href: '/admin/familias', id: 'familias', label: 'Familias' },
+	{ href: '/admin/participantes', id: 'participantes', label: 'Participantes' },
+	{ href: '/admin/sorteos', id: 'sorteos', label: 'Sorteos' },
+	{ href: '/admin/historico', id: 'historico', label: 'Histórico' },
+];
+---
+
+<main class="admin-page">
+	<header class="admin-header">
+		<Brand compact />
+		<form action="/api/admin-session/logout" method="post"><button class="quiet-button" type="submit">Cerrar sesión</button></form>
+	</header>
+	<div class="admin-workspace">
+		<nav class="admin-navigation" aria-label="Navegación de administración">
+			{navigation.map((item) => (
+				<a href={item.href} aria-current={item.id === active ? 'page' : undefined}>{item.label}</a>
+			))}
+		</nav>
+		<div class="admin-content"><slot /></div>
+	</div>
+</main>

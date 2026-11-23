@@ -1,0 +1,142 @@
+---
+import AdminShell from '../../../components/AdminShell.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { findLocalEdition } from '../../../lib/server/edition-directory.ts';
+import { findLocalGroup } from '../../../lib/server/group-directory.ts';
+import { listLocalParticipants } from '../../../lib/server/participant-directory.ts';
+import { participantVisibleName } from '../../../lib/domain/participant.ts';
+import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
+
+if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+	return Astro.redirect('/admin');
+}
+
+const edition = findLocalEdition(Astro.params.id ?? '');
+const group = edition ? findLocalGroup(Astro.url.searchParams.get('family') ?? '') : null;
+const isValidContext = edition !== null && group !== null && edition.groupId === group.id;
+const profiles = group ? listLocalParticipants(group.id) : [];
+const selectedProfileIds = new Set(edition?.participants.map((participant) => participant.profileId) ?? []);
+const isEditable = edition?.status === 'inactive';
+const hasMemberError = Astro.url.searchParams.get('error') === 'members';
+const hasExclusionError = Astro.url.searchParams.get('error') === 'exclusions';
+const hasMemberUpdate = Astro.url.searchParams.get('updated') === 'members';
+const hasExclusionUpdate = Astro.url.searchParams.get('updated') === 'exclusions';
+const statusLabel = edition ? { active: 'Activo', closed: 'Cerrado', inactive: 'Inactivo' }[edition.status] : '';
+const editionExclusionKeys = new Set(
+	edition?.exclusions.map(({ firstParticipantId, secondParticipantId }) => JSON.stringify([firstParticipantId, secondParticipantId].sort())) ?? [],
+);
+const exclusionChoices = edition
+	? edition.participants.flatMap((participant, index) =>
+		edition.participants.slice(index + 1).map((candidate) => ({
+			key: JSON.stringify([participant.id, candidate.id].sort()),
+			label: `${participantVisibleName(participant)} y ${participantVisibleName(candidate)}`,
+		})),
+	)
+	: [];
+
+if (!isValidContext) {
+	Astro.response.status = 404;
+}
+---
+
+<BaseLayout title="Configurar edición · Administración">
+	<AdminShell active="sorteos">
+		{
+			isValidContext && edition && group ? (
+				<>
+					<section class="admin-section-header">
+						<div>
+							<p class="section-kicker">{group.name} · {statusLabel}</p>
+							<h1>Sorteo {edition.year}</h1>
+							<p>Configura perfiles y restricciones mientras el sorteo esté inactivo.</p>
+						</div>
+						<a class="quiet-link" href={`/admin/sorteos?family=${group.slug}`}>Volver a sorteos</a>
+					</section>
+
+					<section class="edition-members-card" id="edition-participants">
+						<h2>Participantes de la edición</h2>
+						<p>Guardar cambios invalida cualquier sorteo preparado y obliga a generarlo de nuevo antes de activarlo.</p>
+						{hasMemberError && <p class="form-error" role="alert">No se han podido guardar los participantes de esta edición.</p>}
+						{hasMemberUpdate && <p class="form-success" role="status">La edición se ha actualizado. Genera el sorteo de nuevo antes de activarlo.</p>}
+						{isEditable ? (
+							<form class="edition-members-form edition-participants-form" action={`/api/admin-groups/${group.slug}/editions/${edition.id}/members`} method="post">
+								<fieldset>
+									<legend>Selecciona los perfiles incluidos</legend>
+									{profiles.length === 0 ? (
+										<p class="list-empty">No hay perfiles disponibles en esta familia.</p>
+									) : (
+										<ul>
+											{profiles.map((profile) => (
+												<li>
+													<label>
+														<input name="profileIds" type="checkbox" value={profile.id} checked={selectedProfileIds.has(profile.id)} />
+														<span>{participantVisibleName(profile)}</span>
+													</label>
+												</li>
+											))}
+										</ul>
+									)}
+								</fieldset>
+								<button class="primary-button" type="submit">Guardar participantes</button>
+							</form>
+						) : (
+							<p class="settings-callout">Esta edición no puede cambiarse porque está {edition.status === 'closed' ? 'cerrada' : 'activa'}. Desactívala para actualizar su configuración.</p>
+						)}
+					</section>
+
+					<section class="edition-members-card" id="edition-exclusions">
+						<h2>Incompatibilidades de esta edición</h2>
+						<p>Estas restricciones solo afectan a este sorteo y son bidireccionales. Modificarlas no cambia las incompatibilidades de los perfiles ni otras ediciones.</p>
+						{hasExclusionError && <p class="form-error" role="alert">No se han podido guardar las incompatibilidades de esta edición.</p>}
+						{hasExclusionUpdate && <p class="form-success" role="status">Incompatibilidades guardadas: {edition.exclusions.length}. Genera el sorteo de nuevo antes de activarlo.</p>}
+						{isEditable ? (
+							<form class="edition-members-form edition-exclusions-form" action={`/api/admin-groups/${group.slug}/editions/${edition.id}/exclusions`} method="post">
+								<fieldset>
+									<legend>Pares que no pueden tocarse</legend>
+									{exclusionChoices.length === 0 ? (
+										<p class="list-empty">Añade al menos dos participantes para configurar incompatibilidades.</p>
+									) : (
+										<ul>
+											{exclusionChoices.map((choice) => (
+												<li>
+													<label>
+														<input name="exclusionPairs" type="checkbox" value={choice.key} checked={editionExclusionKeys.has(choice.key)} />
+														<span>{choice.label}</span>
+													</label>
+												</li>
+											))}
+										</ul>
+									)}
+								</fieldset>
+								<button class="secondary-button" type="submit">Guardar incompatibilidades</button>
+							</form>
+						) : (
+							<p class="settings-callout">Esta edición no puede cambiarse porque está {edition.status === 'closed' ? 'cerrada' : 'activa'}. Desactívala para actualizar su configuración.</p>
+						)}
+					</section>
+				</>
+			) : (
+				<section class="context-empty-state">
+					<div class="empty-state-icon" aria-hidden="true">?</div>
+					<h2>Esta edición no está disponible.</h2>
+					<a class="text-button" href="/admin/sorteos">Volver a sorteos <span aria-hidden="true">→</span></a>
+				</section>
+			)
+		}
+	</AdminShell>
+</BaseLayout>
+
+
+<script>
+	document.querySelectorAll<HTMLFormElement>('.edition-participants-form').forEach((form) => {
+		form.addEventListener('submit', (event) => {
+			if (!window.confirm('Se guardará la composición de esta edición y se invalidará el sorteo preparado. Tendrás que generarlo de nuevo.')) event.preventDefault();
+		});
+	});
+
+	document.querySelectorAll<HTMLFormElement>('.edition-exclusions-form').forEach((form) => {
+		form.addEventListener('submit', (event) => {
+			if (!window.confirm('Se guardarán las incompatibilidades de esta edición y se invalidará el sorteo preparado. Tendrás que generarlo de nuevo.')) event.preventDefault();
+		});
+	});
+</script>

@@ -1,43 +1,127 @@
-# Astro Starter Kit: Minimal
+# Sorteo del Amigo Invisible
 
-```sh
-npm create astro@latest -- --template minimal
+Aplicación web privada para organizar sorteos del Amigo Invisible con familia y
+amistades. Permite preparar ediciones anuales, aplicar incompatibilidades y
+compartir los resultados sin crear cuentas ni solicitar correo electrónico,
+teléfono u otros datos de contacto.
+
+## Qué permite hacer
+
+### Para participantes
+
+- Acceder a la página privada de su familia con una contraseña compartida.
+- Buscar su nombre entre los participantes de la edición activa.
+- Confirmar su identidad con un PIN personal de cuatro dígitos.
+- Consultar su destinatario mientras el sorteo esté activo.
+- Ver ideas de regalo asociadas al destinatario y enlaces externos de afiliado
+  cuando la familia los haya configurado.
+
+### Para administración
+
+- Gestionar varias familias o grupos independientes.
+- Crear, editar, archivar y restaurar familias.
+- Gestionar perfiles reutilizables de participantes, alias opcionales, PIN,
+  incompatibilidades e ideas de regalo.
+- Preparar una edición anual con participantes e incompatibilidades propias.
+- Generar sorteos completos que evitan autoasignaciones e incompatibilidades.
+- Reducir, cuando sea posible, repeticiones del año anterior.
+- Administrar el ciclo de vida de cada edición:
+  - **Inactiva:** se pueden modificar participantes e incompatibilidades.
+  - **Activa:** los participantes pueden consultar su resultado con su PIN.
+  - **Cerrada:** la edición finaliza y queda disponible en el histórico.
+- Reactivar una edición cerrada por error sin modificar sus asignaciones.
+- Consultar el histórico y revelar una asignación concreta solo bajo demanda.
+
+## Privacidad y seguridad
+
+- Solo se solicitan los datos necesarios para organizar el sorteo: nombre,
+  alias opcional, incompatibilidades e ideas de regalo.
+- La aplicación no usa los datos para publicidad, analítica, perfiles
+  comerciales ni cesión a terceros.
+- Las contraseñas y los PIN no se almacenan en texto plano; se guardan como
+  hashes de un solo sentido.
+- Las sesiones se controlan en el servidor mediante cookies `HttpOnly`.
+- Los resultados no se incluyen en la página pública ni se entregan hasta
+  validar la sesión familiar y el PIN del participante.
+- Los datos de desarrollo se excluyen del control de versiones para evitar que
+  participantes, sorteos o credenciales lleguen al repositorio.
+
+> **Nota de transparencia:** el almacenamiento local de desarrollo no está
+> cifrado en reposo. Antes de utilizar datos reales en producción debe
+> configurarse persistencia privada, secretos de servidor y un procedimiento
+> de copia y restauración verificado.
+
+## Tecnología
+
+- [Astro](https://astro.build/) con renderizado del lado del servidor.
+- [Tailwind CSS](https://tailwindcss.com/) para la base de estilos.
+- JSON privado para el desarrollo local.
+- [Roboto](https://fonts.google.com/specimen/Roboto) como tipografía de la
+  interfaz.
+
+## Desarrollo local
+
+### Requisitos
+
+- Node.js `>= 22.23.4`
+- npm
+
+### Puesta en marcha
+
+1. Instala las dependencias:
+
+   ```bash
+   npm install
+   ```
+
+2. Copia el ejemplo de entorno y define tus propios valores privados:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+3. Inicia el entorno local:
+
+   ```bash
+   npm run dev
+   ```
+
+Las variables requeridas son:
+
+| Variable | Finalidad |
+| --- | --- |
+| `ADMIN_USERNAME` | Usuario de la única cuenta administradora. |
+| `ADMIN_PASSWORD_HASH` | Hash de la contraseña de administración. |
+| `SESSION_SECRET` | Secreto de al menos 32 caracteres para las sesiones. |
+
+Nunca subas `.env`, datos reales de familias ni contraseñas al repositorio.
+
+## Pruebas
+
+Ejecuta la suite automática con:
+
+```bash
+npm test
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+Las pruebas validan el motor de sorteos, las incompatibilidades globales y por
+edición, los PIN, las migraciones del JSON local y las transiciones de estado.
+Utilizan directorios temporales y no modifican datos personales de desarrollo.
 
-## 🚀 Project Structure
+## Datos locales
 
-Inside of your Astro project, you'll see the following folders and files:
+Durante el desarrollo, la aplicación mantiene sus datos en un directorio local
+ignorado por Git. Eliminar esos datos reinicia familias, sorteos y sesiones del
+entorno local; no lo hagas si necesitas conservar tus pruebas.
 
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
-```
+## Producción
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+La configuración de producción queda pendiente. Antes de desplegar con datos
+reales será necesario configurar almacenamiento privado, secretos de entorno,
+limitación de intentos compartida entre instancias y copias de seguridad con
+restauración comprobada.
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+## Contribución
 
-Any static assets, like images, can be placed in the `public/` directory.
-
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+No incluyas datos reales de participantes, familias, regalos, contraseñas,
+PIN, sesiones ni copias de seguridad en commits, ejemplos o capturas públicas.

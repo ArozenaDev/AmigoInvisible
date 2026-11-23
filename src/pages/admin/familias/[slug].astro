@@ -1,0 +1,40 @@
+---
+import AdminShell from '../../../components/AdminShell.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { findLocalGroup } from '../../../lib/server/group-directory.ts';
+import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
+
+if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+	return Astro.redirect('/admin');
+}
+
+const group = findLocalGroup(Astro.params.slug ?? '');
+const hasSettingsError = Astro.url.searchParams.get('error') === 'settings';
+const hasPasswordError = Astro.url.searchParams.get('error') === 'password';
+const hasSettingsUpdate = Astro.url.searchParams.get('updated') === 'settings';
+const hasPasswordUpdate = Astro.url.searchParams.get('updated') === 'password';
+if (!group) {
+	Astro.response.status = 404;
+}
+---
+
+<BaseLayout title="Configuración de familia · Administración">
+	<AdminShell active="familias">
+		{group ? (
+			<>
+				<section class="admin-section-header"><div><p class="section-kicker">Familias</p><h1>{group.name}</h1><p>Gestiona la configuración privada de esta familia.</p></div><a class="quiet-link" href="/admin/familias">Volver a familias</a></section>
+				<div class="group-settings-grid">
+					<section class="settings-card"><p class="settings-label">Dirección privada</p><strong>/{group.slug}</strong><p>La dirección no muestra el nombre de la familia hasta autenticar la contraseña compartida.</p></section>
+					<section class="settings-card"><p class="settings-label">Presupuesto recomendado</p><strong>{group.suggestedBudgetAmount === null ? 'Sin configurar' : group.suggestedBudgetAmount.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</strong><p>Se aplica a todas las ediciones de la familia.</p></section>
+					<section class="settings-card"><p class="settings-label">Edición activa</p><strong>{group.activeEditionId === null ? 'Sin edición activa' : 'Edición activa configurada'}</strong><p>La activación será manual después de publicar el sorteo.</p></section>
+				</div>
+				<div class="group-settings-forms">
+					<section class="settings-card"><p class="settings-label">Configuración general</p><h2>Nombre y presupuesto</h2><p>El presupuesto es solo una recomendación y se aplica a todas las ediciones de esta familia.</p>{hasSettingsError && <p class="form-error" role="alert">Revisa el nombre y el presupuesto.</p>}{hasSettingsUpdate && <p class="form-success" role="status">La configuración se ha guardado.</p>}<form class="group-form" action={`/api/admin-groups/${group.slug}/settings`} method="post"><label for="group-name">Nombre de la familia o grupo</label><input id="group-name" name="name" type="text" maxlength="120" value={group.name} required /><label for="group-budget">Presupuesto recomendado (opcional)</label><div class="currency-input"><input id="group-budget" name="budget" type="number" min="0" step="1" inputmode="decimal" value={group.suggestedBudgetAmount ?? ''} /><span aria-hidden="true">€</span></div><button class="primary-button" type="submit">Guardar configuración</button></form></section>
+					<section class="settings-callout"><p class="settings-label">Acceso de la familia</p><h2>Contraseña compartida</h2><p>Se guarda únicamente como hash. Al cambiarla, solo afectará a accesos nuevos: las sesiones abiertas siguen siendo válidas hasta su vencimiento.</p>{hasPasswordError && <p class="form-error" role="alert">La contraseña debe tener al menos 6 caracteres.</p>}{hasPasswordUpdate && <p class="form-success" role="status">La contraseña se ha actualizado.</p>}<form class="group-form" action={`/api/admin-groups/${group.slug}/password`} method="post"><label for="group-password">Nueva contraseña compartida</label><input id="group-password" name="password" type="password" minlength="6" autocomplete="new-password" required /><button class="secondary-button" type="submit">Cambiar contraseña</button></form></section>
+				</div>
+			</>
+		) : (
+			<section class="context-empty-state"><div class="empty-state-icon" aria-hidden="true">?</div><h2>Esta familia no está disponible.</h2><a class="text-button" href="/admin/familias">Volver a familias <span aria-hidden="true">→</span></a></section>
+		)}
+	</AdminShell>
+</BaseLayout>

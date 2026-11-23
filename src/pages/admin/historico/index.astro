@@ -1,0 +1,75 @@
+---
+import AdminShell from '../../../components/AdminShell.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { listLocalEditions } from '../../../lib/server/edition-directory.ts';
+import { findLocalGroup, listLocalGroups } from '../../../lib/server/group-directory.ts';
+import { participantVisibleName } from '../../../lib/domain/participant.ts';
+import type { RevealEvent } from '../../../lib/domain/edition.ts';
+import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
+
+if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) return Astro.redirect('/admin');
+
+const groups = listLocalGroups();
+const selectedSlug = Astro.url.searchParams.get('family') ?? '';
+const selectedGroup = findLocalGroup(selectedSlug);
+const editions = selectedGroup ? listLocalEditions(selectedGroup.id) : [];
+const selectedEditionId = Astro.url.searchParams.get('edition') ?? editions[0]?.id ?? '';
+const selectedEdition = editions.find((edition) => edition.id === selectedEditionId) ?? null;
+const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat('es-ES', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Madrid' }).format(new Date(value)) : '—';
+const statusLabel = { active: 'Activo', closed: 'Cerrado', inactive: 'Inactivo' } as const;
+const auditEventLabel = {
+	activated: 'Sorteo activado',
+	closed: 'Edición cerrada',
+	deactivated: 'Sorteo desactivado',
+	'exclusions-updated': 'Incompatibilidades actualizadas',
+	generated: 'Sorteo generado',
+	'participants-synced': 'Participantes actualizados',
+	reactivated: 'Edición reactivada',
+} as const;
+const isResetEvent = (event: RevealEvent): event is Extract<RevealEvent, { type: 'reset' }> => event.type === 'reset';
+const historyRows = selectedEdition?.participants.map((participant) => {
+	const revealState = selectedEdition.revealStates.find((state) => state.participantId === participant.id);
+	const resets = selectedEdition.revealEvents.filter(isResetEvent).filter((event) => event.participantId === participant.id).sort((first, second) => second.occurredAt.localeCompare(first.occurredAt));
+	return { participant, revealState, resets };
+}) ?? [];
+const lifecycleEvents = selectedEdition ? [...selectedEdition.auditEvents].sort((first, second) => second.occurredAt.localeCompare(first.occurredAt)) : [];
+---
+
+<BaseLayout title="Histórico · Administración">
+	<AdminShell active="historico">
+		<section class="admin-section-header"><div><p class="section-kicker">Histórico</p><h1>Consulta cada edición</h1><p>Los destinatarios se cargan solo cuando eliges ver una asignación concreta.</p></div></section>
+		{groups.length > 0 && <form class="history-filter" action="/admin/historico" method="get"><label for="history-family">Familia</label><select id="history-family" name="family" onchange="this.form.requestSubmit()"><option value="">Selecciona una familia</option>{groups.map((group) => <option value={group.slug} selected={group.slug === selectedGroup?.slug}>{group.name}{group.archivedAt ? ' · Archivada' : ''}</option>)}</select>{selectedGroup && <><label for="history-edition">Edición</label><select id="history-edition" name="edition" onchange="this.form.requestSubmit()">{editions.map((edition) => <option value={edition.id} selected={edition.id === selectedEdition?.id}>{edition.year} · {statusLabel[edition.status]}</option>)}</select></>}<button class="quiet-button" type="submit">Aplicar</button></form>}
+		{selectedEdition && selectedGroup ? <section class="history-section" aria-labelledby="history-edition-title"><div class="history-heading"><div><p class="section-kicker">{selectedGroup.name}</p><h2 id="history-edition-title">Sorteo {selectedEdition.year}</h2><p>{statusLabel[selectedEdition.status]} · última activación: {formatDate(selectedEdition.activatedAt)}</p></div><span>{historyRows.length} participantes</span></div><div class="history-table" role="region" aria-label="Consultas de la edición" tabindex="0"><table><thead><tr><th scope="col">Participante</th><th scope="col">Consultas</th><th scope="col">Restablecimientos anteriores</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead><tbody>{historyRows.map(({ participant, revealState, resets }) => <tr><td>{participantVisibleName(participant)}</td><td><strong>{!revealState || revealState.revealCount === 0 ? 'Pendiente' : 'Consultado'}</strong><small class="history-cell-detail">{revealState?.revealCount ? `${revealState.revealCount} consulta${revealState.revealCount === 1 ? '' : 's'} · última: ${formatDate(revealState.lastRevealedAt)}` : 'Sin consultas'}</small></td><td>{resets.length === 0 ? '—' : <details class="history-audit-details"><summary>{resets.length} restablecimiento{resets.length === 1 ? '' : 's'}</summary><ul>{resets.map((reset) => <li><strong>{formatDate(reset.occurredAt)}</strong><span>{reset.reason}</span></li>)}</ul></details>}</td><td><div class="history-actions"><button aria-expanded="false" class="quiet-button assignment-button" data-assignment-url={`/api/admin-groups/${selectedGroup.slug}/editions/${selectedEdition.id}/assignment?participantId=${participant.id}`} type="button">Ver asignación</button><p class="assignment-result" hidden></p></div></td></tr>)}</tbody></table></div>{lifecycleEvents.length > 0 && <section class="edition-audit" aria-labelledby="edition-audit-title"><h3 id="edition-audit-title">Actividad de la edición</h3><ul>{lifecycleEvents.map((event) => <li><strong>{auditEventLabel[event.type]}</strong><span>{formatDate(event.occurredAt)}</span></li>)}</ul></section>}</section> : <section class="context-empty-state"><div class="empty-state-icon" aria-hidden="true">◷</div><h2>{groups.length === 0 ? 'Aún no hay familias.' : 'Elige una familia.'}</h2><p>El histórico se mostrará cuando selecciones una familia y una edición.</p></section>}
+	</AdminShell>
+</BaseLayout>
+
+<script>
+	document.querySelectorAll<HTMLButtonElement>('.assignment-button').forEach((button) => {
+		button.addEventListener('click', async () => {
+			const result = button.parentElement?.querySelector<HTMLElement>('.assignment-result');
+			if (!result || !button.dataset.assignmentUrl) return;
+			if (!result.hidden) {
+				result.hidden = true;
+				result.textContent = '';
+				button.textContent = 'Ver asignación';
+				button.setAttribute('aria-expanded', 'false');
+				return;
+			}
+			button.disabled = true;
+			try {
+				const response = await fetch(button.dataset.assignmentUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+				const payload = await response.json() as { recipientName?: string };
+				if (!response.ok || !payload.recipientName) throw new Error();
+				result.textContent = `Regala a: ${payload.recipientName}`;
+				result.hidden = false;
+				button.textContent = 'Ocultar asignación';
+				button.setAttribute('aria-expanded', 'true');
+			} catch {
+				result.textContent = 'No ha sido posible consultar la asignación.';
+				result.hidden = false;
+			} finally {
+				button.disabled = false;
+			}
+		});
+	});
+</script>

@@ -1,0 +1,18 @@
+---
+import GiftIdeaCards, { type GiftIdea } from './GiftIdeaCards.astro';
+
+interface Props {
+	ideas: GiftIdea[];
+	recipientName: string;
+}
+
+const { ideas, recipientName } = Astro.props;
+---
+
+<section class="reveal-result" aria-labelledby="result-title">
+	<div class="reveal-burst" aria-hidden="true"><span>✦</span><span>✦</span><span>✦</span></div>
+	<p class="section-kicker">Tu amigo invisible es</p>
+	<h1 id="result-title">{recipientName}</h1>
+	<p class="result-copy">Ahora ya puedes preparar una sorpresa especial.</p>
+</section>
+<GiftIdeaCards ideas={ideas} />

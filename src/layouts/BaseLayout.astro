@@ -1,0 +1,29 @@
+---
+import '../styles/global.css';
+
+interface Props {
+	description?: string;
+	title: string;
+}
+
+const {
+	description = 'Organiza y consulta tu sorteo privado de Amigo Invisible.',
+	title,
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="es">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="description" content={description} />
+		<meta name="color-scheme" content="light" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<title>{title}</title>
+	</head>
+	<body>
+		<slot />
+	</body>
+</html>

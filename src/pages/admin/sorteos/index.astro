@@ -1,0 +1,94 @@
+---
+import AdminShell from '../../../components/AdminShell.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { listLocalEditions } from '../../../lib/server/edition-directory.ts';
+import { findLocalGroup, listLocalGroups } from '../../../lib/server/group-directory.ts';
+import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
+
+if (!getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value)) return Astro.redirect('/admin');
+
+const groups = listLocalGroups().filter((group) => group.archivedAt === null);
+const selectedSlug = Astro.url.searchParams.get('family') ?? '';
+const selectedGroup = findLocalGroup(selectedSlug);
+const editions = selectedGroup && selectedGroup.archivedAt === null ? listLocalEditions(selectedGroup.id) : [];
+const defaultYear = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Madrid', year: 'numeric' }).format(new Date()));
+const hasCreationError = Astro.url.searchParams.get('error') === 'edition';
+const hasGenerationError = Astro.url.searchParams.get('error') === 'generation';
+const hasActivationError = Astro.url.searchParams.get('error') === 'activate';
+const hasDeactivationError = Astro.url.searchParams.get('error') === 'deactivate';
+const hasCloseError = Astro.url.searchParams.get('error') === 'close';
+const hasReactivateError = Astro.url.searchParams.get('error') === 'reactivate';
+const hasSyncError = Astro.url.searchParams.get('error') === 'sync';
+const hasDeleteError = Astro.url.searchParams.get('error') === 'delete-edition';
+const hasEditionCreated = Astro.url.searchParams.get('created') === 'edition';
+const hasEditionGenerated = Astro.url.searchParams.get('generated') === 'edition';
+const hasEditionActivated = Astro.url.searchParams.get('activated') === 'edition';
+const hasEditionDeactivated = Astro.url.searchParams.get('deactivated') === 'edition';
+const hasEditionClosed = Astro.url.searchParams.get('closed') === 'edition';
+const hasEditionReactivated = Astro.url.searchParams.get('reactivated') === 'edition';
+const hasEditionSynced = Astro.url.searchParams.get('synced') === 'edition';
+const hasEditionDeleted = Astro.url.searchParams.get('deleted') === 'edition';
+const repeatedAssignments = Number(Astro.url.searchParams.get('repeats') ?? '0');
+const statusLabel = { active: 'Activo', closed: 'Cerrado', inactive: 'Inactivo' } as const;
+const editionRows = editions.map((edition) => ({
+	canDelete: edition.status === 'inactive' && edition.revealStates.every((state) => state.revealCount === 0),
+	isReadyToActivate: edition.status === 'inactive' && edition.participants.length > 0 && edition.assignments.length === edition.participants.length,
+	edition,
+}));
+---
+
+<BaseLayout title="Sorteos · Administración">
+	<AdminShell active="sorteos">
+		<section class="admin-section-header"><div><p class="section-kicker">Sorteos</p><h1>Ediciones anuales</h1><p>Un sorteo puede estar inactivo para configurarlo, activo para participantes o cerrado al finalizar el año.</p></div></section>
+		<section class="draw-lifecycle-guide" aria-label="Estados de un sorteo">
+			<article><span>1</span><div><strong>Inactivo</strong><p>Configura participantes e incompatibilidades y genera el sorteo.</p></div></article>
+			<article><span>2</span><div><strong>Activo</strong><p>Los participantes consultan su resultado con su contraseña y PIN.</p></div></article>
+			<article><span>3</span><div><strong>Cerrado</strong><p>La edición finaliza y queda disponible solo en el histórico.</p></div></article>
+		</section>
+		{groups.length > 0 && <form class="family-filter" action="/admin/sorteos" method="get"><label for="draw-family">Familia</label><select id="draw-family" name="family" onchange="this.form.requestSubmit()"><option value="">Selecciona una familia</option>{groups.map((group) => <option value={group.slug} selected={group.slug === selectedGroup?.slug}>{group.name}</option>)}</select></form>}
+		{selectedGroup && selectedGroup.archivedAt === null ? <>
+			<section class="draw-create-card" aria-labelledby="new-edition-title"><div><p class="section-kicker">{selectedGroup.name}</p><h2 id="new-edition-title">Nueva edición</h2><p>La edición se crea inactiva, con los participantes e incompatibilidades actuales de la familia.</p></div><form class="draw-create-form" action={`/api/admin-groups/${selectedGroup.slug}/editions`} method="post"><label for="edition-year">Año</label><input id="edition-year" name="year" type="number" min="2000" max="9999" value={defaultYear} required /><button class="primary-button" type="submit">Crear edición<span aria-hidden="true">→</span></button></form></section>
+			{hasCreationError && <p class="form-error" role="alert">No ha sido posible crear la edición. Comprueba que el año no exista ya.</p>}
+			{hasGenerationError && <p class="form-error" role="alert">No existe una asignación válida. Revisa que haya al menos dos participantes y sus incompatibilidades.</p>}
+			{hasActivationError && <p class="form-error" role="alert">No ha sido posible activar esta edición. Comprueba que tiene un sorteo generado y que no haya otra edición activa.</p>}
+			{hasDeactivationError && <p class="form-error" role="alert">No ha sido posible desactivar esta edición.</p>}
+			{hasCloseError && <p class="form-error" role="alert">No ha sido posible cerrar esta edición activa.</p>}
+			{hasReactivateError && <p class="form-error" role="alert">No ha sido posible reactivar esta edición. Comprueba que no haya otro sorteo activo.</p>}
+			{hasSyncError && <p class="form-error" role="alert">No se han podido actualizar los participantes de esta edición.</p>}
+			{hasDeleteError && <p class="form-error" role="alert">Solo pueden eliminarse ediciones inactivas sin consultas de participantes.</p>}
+			{hasEditionCreated && <p class="form-success" role="status">La edición se ha creado como inactiva.</p>}
+			{hasEditionGenerated && <p class="form-success" role="status">El sorteo se ha generado y validado. Actívalo cuando quieras abrirlo a los participantes.</p>}
+			{hasEditionActivated && <p class="form-success" role="status">El sorteo está activo. Los participantes pueden consultar su resultado con su PIN.</p>}
+			{hasEditionDeactivated && <p class="form-success" role="status">El sorteo está inactivo y puedes actualizar participantes e incompatibilidades.</p>}
+			{hasEditionClosed && <p class="form-success" role="status">La edición se ha cerrado. Puedes reactivarla si se cerró por error.</p>}
+			{hasEditionReactivated && <p class="form-success" role="status">La edición se ha reactivado sin cambiar sus asignaciones.</p>}
+			{hasEditionSynced && <p class="form-success" role="status">La edición se ha actualizado con los perfiles actuales. Genera el sorteo de nuevo antes de activarlo.</p>}
+			{hasEditionDeleted && <p class="form-success" role="status">La edición se ha eliminado.</p>}
+			{repeatedAssignments > 0 && <p class="settings-callout" role="status">Se han evitado todas las repeticiones posibles; {repeatedAssignments} asignación{repeatedAssignments === 1 ? '' : 'es'} repite{repeatedAssignments === 1 ? '' : 'n'} destinatario respecto a la edición anterior.</p>}
+			{editions.length === 0 ? <section class="context-empty-state"><div class="empty-state-icon" aria-hidden="true">✦</div><h2>Aún no hay ediciones.</h2><p>Crea una edición inactiva para preparar el siguiente sorteo.</p></section> : <section class="edition-list" aria-label="Ediciones de la familia">{editionRows.map(({ edition, canDelete, isReadyToActivate }) => <article class="edition-row"><div><p class="edition-status">{statusLabel[edition.status]}</p><h2><a class="edition-title-link" href={`/${selectedGroup.slug}`}>Sorteo {edition.year}</a></h2><p>{edition.participants.length} participante{edition.participants.length === 1 ? '' : 's'} · {edition.exclusions.length} incompatibilidad{edition.exclusions.length === 1 ? '' : 'es'}</p></div><div class="edition-actions"><a class="quiet-link" href={`/admin/sorteos/${edition.id}?family=${selectedGroup.slug}`}>Configurar edición</a>{edition.status === 'inactive' && <form class="edition-sync-form" data-edition-year={edition.year} action={`/api/admin-groups/${selectedGroup.slug}/editions/${edition.id}/sync-participants`} method="post"><button class="secondary-button" type="submit">Actualizar participantes</button></form>}{edition.status === 'inactive' && <form action={`/api/admin-groups/${selectedGroup.slug}/editions/${edition.id}/generate`} method="post"><button class="secondary-button" type="submit">{isReadyToActivate ? 'Volver a generar' : 'Generar sorteo'}</button></form>}{canDelete && <form class="edition-delete-form" data-edition-year={edition.year} action={`/api/admin-groups/${selectedGroup.slug}/editions/${edition.id}/delete`} method="post"><button class="danger-link" type="submit">Eliminar edición</button></form>}{isReadyToActivate && <form action={`/api/admin-groups/${selectedGroup.slug}/editions/${edition.id}/activate`} method="post"><button class="primary-button" type="submit">Activar sorteo</button></form>}{edition.status === 'active' && <form class="edition-deactivate-form" data-edition-year={edition.year} action={`/api/admin-groups/${selectedGroup.slug}/editions/${edition.id}/deactivate`} method="post"><button class="secondary-button" type="submit">Desactivar sorteo</button></form>}{edition.status === 'active' && <form class="edition-close-form" data-edition-year={edition.year} action={`/api/admin-groups/${selectedGroup.slug}/editions/${edition.id}/close`} method="post"><button class="danger-link" type="submit">Cerrar edición</button></form>}{edition.status === 'closed' && <form class="edition-reactivate-form" data-edition-year={edition.year} action={`/api/admin-groups/${selectedGroup.slug}/editions/${edition.id}/reactivate`} method="post"><button class="secondary-button" type="submit">Reactivar edición</button></form>}</div></article>)}</section>}
+		</> : groups.length === 0 ? <section class="context-empty-state"><div class="empty-state-icon" aria-hidden="true">✦</div><h2>Primero configura una familia.</h2><p>Cuando existan participantes, podrás crear una edición y generar un sorteo válido.</p><a class="text-button" href="/admin/familias">Ir a familias <span aria-hidden="true">→</span></a></section> : <section class="context-empty-state"><div class="empty-state-icon" aria-hidden="true">✦</div><h2>Elige una familia.</h2><p>El sorteo siempre se gestiona dentro del contexto privado de una familia.</p></section>}
+	</AdminShell>
+</BaseLayout>
+
+<script>
+	document.querySelectorAll<HTMLFormElement>('.edition-delete-form').forEach((form) => form.addEventListener('submit', (event) => {
+		const year = form.dataset.editionYear ?? 'esta';
+		if (!window.confirm(`Se eliminará la edición de ${year}. Esta acción no se puede deshacer.`)) event.preventDefault();
+	}));
+	document.querySelectorAll<HTMLFormElement>('.edition-sync-form').forEach((form) => form.addEventListener('submit', (event) => {
+		const year = form.dataset.editionYear ?? 'esta';
+		if (!window.confirm(`Se actualizarán los participantes de la edición ${year} y se invalidará el sorteo preparado. Tendrás que generarlo de nuevo.`)) event.preventDefault();
+	}));
+	document.querySelectorAll<HTMLFormElement>('.edition-deactivate-form').forEach((form) => form.addEventListener('submit', (event) => {
+		const year = form.dataset.editionYear ?? 'esta edición';
+		if (!window.confirm(`Se desactivará el sorteo ${year}. Los participantes no podrán ver resultados hasta que lo actives otra vez.`)) event.preventDefault();
+	}));
+	document.querySelectorAll<HTMLFormElement>('.edition-close-form').forEach((form) => form.addEventListener('submit', (event) => {
+		const year = form.dataset.editionYear ?? 'esta edición';
+		if (!window.confirm(`Se cerrará la edición ${year}. Esta acción finaliza el sorteo de este año.`)) event.preventDefault();
+	}));
+	document.querySelectorAll<HTMLFormElement>('.edition-reactivate-form').forEach((form) => form.addEventListener('submit', (event) => {
+		const year = form.dataset.editionYear ?? 'esta edición';
+		if (!window.confirm(`Se reactivará la edición ${year} con las mismas asignaciones. Los participantes podrán volver a consultar su resultado con el PIN.`)) event.preventDefault();
+	}));
+</script>

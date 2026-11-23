@@ -1,0 +1,37 @@
+---
+import Brand from '../../../components/Brand.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../lib/server/sessions.ts';
+
+const session = getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value);
+const hasValidationError = Astro.url.searchParams.get('error') === 'validation';
+
+if (!session) {
+	return Astro.redirect('/admin');
+}
+---
+
+<BaseLayout title="Nueva familia · Amigo Invisible">
+	<main class="admin-page">
+		<header class="admin-header"><Brand compact /><a class="quiet-link" href="/admin">Cancelar</a></header>
+		<section class="admin-form-page" aria-labelledby="new-group-title">
+			<p class="section-kicker">Familias</p>
+			<h1 id="new-group-title">Crea una familia.</h1>
+			<p>La contraseña se convierte en un hash de un solo sentido antes de almacenarse. Nunca se guardará ni se mostrará en claro.</p>
+
+			{hasValidationError && <p class="form-error" role="alert">Revisa los datos introducidos. El slug debe ser único y la contraseña debe tener al menos 6 caracteres.</p>}
+			<form class="group-form" action="/api/admin-groups" method="post">
+				<label for="group-name">Nombre de la familia o grupo</label>
+				<input id="group-name" name="name" type="text" autocomplete="off" required />
+				<label for="group-slug">Dirección privada</label>
+				<div class="slug-input"><span aria-hidden="true">/</span><input id="group-slug" name="slug" type="text" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocapitalize="none" autocomplete="off" required /></div>
+				<p class="field-caption">Usa minúsculas, números y guiones. Este dato no mostrará el nombre de la familia antes de autenticar.</p>
+				<label for="group-password">Contraseña compartida</label>
+				<input id="group-password" name="password" type="password" minlength="6" autocomplete="new-password" required />
+				<label for="group-budget">Presupuesto recomendado (opcional)</label>
+				<div class="currency-input"><input id="group-budget" name="budget" type="number" min="0" step="1" inputmode="decimal" /><span aria-hidden="true">€</span></div>
+				<button class="primary-button" type="submit">Crear familia<span aria-hidden="true">→</span></button>
+			</form>
+		</section>
+	</main>
+</BaseLayout>
