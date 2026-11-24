@@ -30,14 +30,6 @@ const activeDrawCount = activeGroups.filter((group) =>
 					<p>Gestiona las familias, prepara sus ediciones y activa cada sorteo cuando esté listo para participar.</p>
 					<a class="primary-button" href="/admin/familias/nueva">Crear una familia<span aria-hidden="true">→</span></a>
 				</section>
-				<section class="settings-card" aria-labelledby="storage-diagnostic-title">
-					<h2 id="storage-diagnostic-title">Diagnóstico de almacenamiento</h2>
-					<p>Comprueba la conexión y la escritura con un archivo temporal independiente, sin modificar los datos de familias o sorteos.</p>
-					<form method="post" action="/api/admin-storage-diagnostic">
-						<button class="secondary-button" type="submit">Ejecutar diagnóstico</button>
-					</form>
-				</section>
-
 				<section class="admin-overview-grid" aria-label="Resumen de la administración">
 					<a class="admin-overview-card" href="/admin/familias">
 						<span>Familias activas</span>

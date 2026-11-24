@@ -28,7 +28,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 	}
 
 	const identifier = requestIdentifier(request);
-	if (!canAttemptLogin(identifier)) {
+	if (!await canAttemptLogin(identifier)) {
 		return new Response(GENERIC_LOGIN_ERROR, { status: 429 });
 	}
 
@@ -44,7 +44,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 		return redirect('/admin?error=login', 303);
 	}
 
-	clearLoginFailures(identifier);
+	await clearLoginFailures(identifier);
 	try {
 		const session = await createAdminSession();
 		cookies.set(ADMIN_SESSION_COOKIE, session.id, sessionCookieOptions());

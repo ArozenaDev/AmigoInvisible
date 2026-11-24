@@ -11,13 +11,17 @@
     "preview": "astro preview",
     "astro": "astro",
     "test": "node --experimental-strip-types --test test/*.test.ts",
-    "check": "astro check"
+    "check": "astro check",
+    "db:migrate": "node --experimental-strip-types scripts/migrate-database.ts"
   },
   "dependencies": {
     "@astrojs/vercel": "^11.0.22",
+    "@neon/config": "^1.14.6",
+    "@neon/env": "^2.1.9",
     "@tailwindcss/vite": "^4.3.5",
-    "@vercel/blob": "^2.9.0",
+    "@vercel/functions": "^3.11.3",
     "astro": "^7.4.12",
+    "pg": "^8.23.1",
     "tailwindcss": "^4.3.5"
   },
   "overrides": {
@@ -26,7 +30,9 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
+    "@electric-sql/pglite": "^0.6.0",
     "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
     "typescript": "^6.0.3"
   }
 }

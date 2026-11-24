@@ -36,10 +36,12 @@ class LocalParticipantDirectory {
 			updatedAt: now,
 		};
 
-		await updatePersistentData((data) => {
+		const created = await updatePersistentData((data) => {
+			if (!data.groups.some((group) => group.id === input.groupId && group.archivedAt === null)) return false;
 			data.participants.push(participant);
+			return true;
 		});
-		return participant;
+		return created ? participant : null;
 	}
 
 	async listByGroup(groupId: string): Promise<ParticipantProfile[]> {
@@ -111,19 +113,13 @@ class LocalParticipantDirectory {
 
 	async setExclusions(id: string, groupId: string, excludedIds: string[]): Promise<boolean> {
 		const uniqueExcludedIds = [...new Set(excludedIds)];
-		const data = await readPersistentData();
-		const participant = data.participants.find((currentParticipant) => currentParticipant.id === id);
-		const isValid =
-			participant?.groupId === groupId &&
-			uniqueExcludedIds.every((excludedId) => {
-				const excludedParticipant = data.participants.find((currentParticipant) => currentParticipant.id === excludedId);
-				return excludedId !== id && excludedParticipant?.groupId === groupId;
-			});
-		if (!isValid) {
-			return false;
-		}
-
 		return await updatePersistentData((draft) => {
+			const participant = draft.participants.find((currentParticipant) => currentParticipant.id === id);
+			const isValid = participant?.groupId === groupId && uniqueExcludedIds.every((excludedId) => {
+				const excluded = draft.participants.find((currentParticipant) => currentParticipant.id === excludedId);
+				return excludedId !== id && excluded?.groupId === groupId;
+			});
+			if (!isValid) return false;
 			draft.exclusionPairs = draft.exclusionPairs.filter((pair) => !this.#pairIncludesParticipant(pair, id));
 			for (const excludedId of uniqueExcludedIds) {
 				draft.exclusionPairs.push(this.#pairKey(id, excludedId));

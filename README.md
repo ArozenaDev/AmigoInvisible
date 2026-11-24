@@ -56,6 +56,7 @@ teléfono u otros datos de contacto.
 - [Astro](https://astro.build/) con renderizado del lado del servidor.
 - [Tailwind CSS](https://tailwindcss.com/) para la base de estilos.
 - JSON privado para el desarrollo local.
+- PostgreSQL para la persistencia en producción.
 - [Roboto](https://fonts.google.com/specimen/Roboto) como tipografía de la
   interfaz.
 
@@ -107,6 +108,8 @@ npm test
 Las pruebas validan el motor de sorteos, las incompatibilidades globales y por
 edición, los PIN, las migraciones del JSON local y las transiciones de estado.
 Utilizan directorios temporales y no modifican datos personales de desarrollo.
+Las pruebas contra una instancia PostgreSQL externa son opcionales y se omiten
+si no se configuran sus variables de conexión de pruebas.
 
 ## Datos locales
 
@@ -116,17 +119,30 @@ entorno local; no lo hagas si necesitas conservar tus pruebas.
 
 ## Producción
 
-La aplicación usa el adaptador SSR de Vercel y, al ejecutarse en Vercel,
-guarda su estado en un único JSON de **Vercel Blob privado**. Las lecturas
-sensibles evitan caché y las escrituras emplean ETag para no sobrescribir
-cambios concurrentes. El JSON nunca se entrega directamente al navegador.
+En el despliegue SSR, las familias, participantes, ediciones y sesiones se
+almacenan en PostgreSQL. Las escrituras relacionadas se confirman mediante una
+transacción; las consultas públicas devuelven exclusivamente los datos
+autorizados por el servidor. La implementación actual serializa las operaciones
+de estado mediante un bloqueo de transacción, priorizando integridad sobre
+concurrencia elevada.
 
-Configura `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH` y `SESSION_SECRET` como
-variables privadas del proyecto. Vercel Blob utiliza credenciales de corta
-duración OIDC en producción; no copies el token de Blob al repositorio ni al
-cliente. Antes de abrir el sitio al público configura también límites de
-peticiones en la capa de seguridad de Vercel y un procedimiento externo,
-cifrado y comprobado de copias de seguridad.
+Configura `DATABASE_URL` con una cadena PostgreSQL privada y cifrada, además de
+`ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH` y `SESSION_SECRET`, como secretos del
+entorno del servidor. Nunca los incluyas en el repositorio o en el navegador.
+Utiliza bases de datos distintas para producción y previsualizaciones. Las
+migraciones son manuales (`npm run db:migrate` con `DATABASE_URL` configurada)
+y no se ejecutan automáticamente al desplegar. Verifica copias de seguridad y
+restauración antes de usar datos reales.
+
+Para probar la concurrencia contra una **base de pruebas independiente**, se
+puede ejecutar la suite con `TEST_DATABASE_URL` configurada. Esa prueba crea y
+elimina un esquema temporal; no debe apuntarse a la base de producción. Sin
+esa variable, se omite y las pruebas PostgreSQL embebidas siguen ejecutándose.
+La URL de esta prueba debe ser directa (sin pooler), ya que utiliza estado de
+sesión de PostgreSQL. Para las peticiones normales de la aplicación se
+recomienda una URL con pooler y TLS. La prueba integral opcional utiliza
+`TEST_E2E_DATABASE_URL` y crea datos ficticios en la base indicada; debe
+ejecutarse exclusivamente en una rama de pruebas aislada.
 
 ## Contribución
 

@@ -5,9 +5,8 @@ export interface VersionedJson<T> {
 }
 
 /**
- * Persistence boundary for private JSON. The production adapter will map
- * `version` to Vercel Blob's ETag and use it as `ifMatch`; local tests use the
- * in-memory implementation below.
+ * Generic versioned JSON interface for isolated tests or future adapters.
+ * Production persistence uses PostgreSQL transactions instead.
  */
 export interface VersionedJsonStore {
 	read<T>(key: string): Promise<VersionedJson<T> | null>;

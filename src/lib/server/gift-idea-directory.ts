@@ -13,31 +13,18 @@ export async function createLocalGiftIdea(
 	input: GiftIdeaInput,
 ): Promise<GiftIdea | null> {
 	const normalized = normalizeGiftIdeaInput(input);
-	if (!normalized || !await participantBelongsToGroup(participantId, groupId)) {
+	if (!normalized) {
 		return null;
 	}
 
 	const now = new Date().toISOString();
-	const sortOrder = Math.max(
-		-1,
-		...(await readPersistentData()).giftIdeas
-			.filter((idea) => idea.participantId === participantId)
-			.map((idea) => idea.sortOrder),
-	) + 1;
-	const idea: GiftIdea = {
-		...normalized,
-		createdAt: now,
-		groupId,
-		id: randomUUID(),
-		participantId,
-		sortOrder,
-		updatedAt: now,
-	};
-
-	await updatePersistentData((data) => {
+	return await updatePersistentData((data) => {
+		if (!data.participants.some((participant) => participant.id === participantId && participant.groupId === groupId)) return null;
+		const sortOrder = Math.max(-1, ...data.giftIdeas.filter((idea) => idea.participantId === participantId).map((idea) => idea.sortOrder)) + 1;
+		const idea: GiftIdea = { ...normalized, createdAt: now, groupId, id: randomUUID(), participantId, sortOrder, updatedAt: now };
 		data.giftIdeas.push(idea);
+		return idea;
 	});
-	return idea;
 }
 
 export async function listLocalGiftIdeas(groupId: string, participantId: string): Promise<GiftIdea[]> {

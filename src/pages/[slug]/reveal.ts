@@ -36,13 +36,14 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
 	if (typeof participantId !== 'string' || typeof pin !== 'string') {
 		return json({ message: 'No ha sido posible revelar el resultado.' }, 400);
 	}
+	const editionParticipant = activeEdition.participants.find((participant) => participant.id === participantId);
+	if (!editionParticipant) return json({ message: 'No ha sido posible revelar el resultado.' }, 403);
 	const pinAttemptId = `pin:${group.id}:${participantId}:${requestIdentifier(request)}`;
-	if (!canAttemptParticipantPin(pinAttemptId)) {
+	if (!await canAttemptParticipantPin(pinAttemptId)) {
 		return json({ message: 'No ha sido posible revelar el resultado.' }, 429);
 	}
 
-	const editionParticipant = activeEdition.participants.find((participant) => participant.id === participantId);
-	const participant = editionParticipant ? await findLocalParticipant(editionParticipant.profileId) : null;
+	const participant = await findLocalParticipant(editionParticipant.profileId);
 	const { sessionSecret } = getServerSecrets();
 	const pinMatches = verifyParticipantPin(pin, participant?.accessPinHash ?? unknownPinHash, sessionSecret);
 	if (!pinMatches || participant?.groupId !== group.id) {
@@ -50,7 +51,7 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
 		return json({ message: 'El PIN no es correcto.' }, 403);
 	}
 
-	clearParticipantPinFailures(pinAttemptId);
+	await clearParticipantPinFailures(pinAttemptId);
 
 	const result = await revealLocalEditionParticipant(activeEdition.id, participantId);
 	if (result.kind !== 'revealed') {

@@ -25,13 +25,14 @@ export const POST: APIRoute = async ({ params, request, cookies, redirect }) => 
 		return new Response(null, { status: 403 });
 	}
 
-	const identifier = `group:${slug}:${requestIdentifier(request)}`;
-	if (!canAttemptLogin(identifier)) {
+	const group = await findAvailableLocalGroup(slug);
+	// Unknown slugs share one limiter rather than creating unbounded records.
+	const identifier = `group:${group ? slug : 'unknown'}:${requestIdentifier(request)}`;
+	if (!await canAttemptLogin(identifier)) {
 		return redirect(`/${slug}?error=access`, 303);
 	}
 
 	const password = (await request.formData()).get('password');
-	const group = await findAvailableLocalGroup(slug);
 	const passwordMatches =
 		typeof password === 'string' && verifyPassword(password, group?.accessPasswordHash ?? unknownGroupPasswordHash);
 
@@ -40,7 +41,7 @@ export const POST: APIRoute = async ({ params, request, cookies, redirect }) => 
 		return redirect(`/${slug}?error=access`, 303);
 	}
 
-	clearLoginFailures(identifier);
+	await clearLoginFailures(identifier);
 	const session = await createGroupSession(group.id);
 	cookies.set(GROUP_SESSION_COOKIE, session.id, sessionCookieOptions(`/${slug}`));
 	return redirect(`/${slug}`, 303);

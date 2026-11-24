@@ -1,3 +1,6 @@
+import { clearPostgresAttempts, reservePostgresAttempt } from './postgres-rate-limit.ts';
+import { usesPostgres } from './persistent-data-store.ts';
+
 const LOGIN_ATTEMPT_WINDOW_MILLISECONDS = 15 * 60 * 1000;
 const MAX_LOGIN_ATTEMPTS = 5;
 
@@ -47,26 +50,39 @@ export function requestIdentifier(request: Request): string {
 	return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 }
 
-export function canAttemptLogin(identifier: string): boolean {
-	return loginRateLimiter.canAttempt(identifier);
+function loginScope(identifier: string): string {
+	return identifier.startsWith('group:') ? `group:${identifier.split(':')[1]}` : 'admin';
+}
+
+function pinScope(identifier: string): string {
+	const [, groupId, participantId] = identifier.split(':');
+	return `pin:${groupId}:${participantId}`;
+}
+
+export async function canAttemptLogin(identifier: string): Promise<boolean> {
+	return usesPostgres()
+		? reservePostgresAttempt(loginScope(identifier)) : loginRateLimiter.canAttempt(identifier);
 }
 
 export function recordFailedLogin(identifier: string): void {
-	loginRateLimiter.recordFailure(identifier);
+	if (!usesPostgres()) loginRateLimiter.recordFailure(identifier);
 }
 
-export function clearLoginFailures(identifier: string): void {
-	loginRateLimiter.clear(identifier);
+export async function clearLoginFailures(identifier: string): Promise<void> {
+	if (usesPostgres()) await clearPostgresAttempts(loginScope(identifier));
+	else loginRateLimiter.clear(identifier);
 }
 
-export function canAttemptParticipantPin(identifier: string): boolean {
-	return pinRateLimiter.canAttempt(identifier);
+export async function canAttemptParticipantPin(identifier: string): Promise<boolean> {
+	return usesPostgres()
+		? reservePostgresAttempt(pinScope(identifier)) : pinRateLimiter.canAttempt(identifier);
 }
 
 export function recordFailedParticipantPin(identifier: string): void {
-	pinRateLimiter.recordFailure(identifier);
+	if (!usesPostgres()) pinRateLimiter.recordFailure(identifier);
 }
 
-export function clearParticipantPinFailures(identifier: string): void {
-	pinRateLimiter.clear(identifier);
+export async function clearParticipantPinFailures(identifier: string): Promise<void> {
+	if (usesPostgres()) await clearPostgresAttempts(pinScope(identifier));
+	else pinRateLimiter.clear(identifier);
 }

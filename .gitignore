@@ -39,3 +39,4 @@ agents.md
 *.pem
 .vercel
 .env*
+.neon
