@@ -7,6 +7,17 @@ import { loadPostgresState, persistPostgresChanges } from '../src/lib/server/pos
 
 const schema = await readFile(new URL('../migrations/001_initial.sql', import.meta.url), 'utf8');
 
+test('carga el estado completo con una sola consulta y admite tablas vacías', async () => {
+	const db = new PGlite();
+	try {
+		await db.exec(schema);
+		let queries = 0;
+		const client = { query: (...args: Parameters<typeof db.query>) => { queries++; return db.query(...args); } };
+		assert.deepEqual(await loadPostgresState(client as never), emptyLocalData());
+		assert.equal(queries, 1);
+	} finally { await db.close(); }
+});
+
 test('el esquema guarda familias, participantes, exclusiones y sesiones en PostgreSQL', async () => {
 	const db = new PGlite();
 	try {

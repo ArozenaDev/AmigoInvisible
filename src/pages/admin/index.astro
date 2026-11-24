@@ -2,19 +2,18 @@
 import AdminShell from '../../components/AdminShell.astro';
 import Brand from '../../components/Brand.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { listLocalEditions } from '../../lib/server/edition-directory.ts';
-import { listLocalGroups } from '../../lib/server/group-directory.ts';
-import { listLocalParticipants } from '../../lib/server/participant-directory.ts';
+import { readPersistentData } from '../../lib/server/persistent-data-store.ts';
 import { getAdminSession, ADMIN_SESSION_COOKIE } from '../../lib/server/sessions.ts';
 
 const session = await getAdminSession(Astro.cookies.get(ADMIN_SESSION_COOKIE)?.value);
 const hasLoginError = Astro.url.searchParams.get('error') === 'login';
 const hasSessionError = Astro.url.searchParams.get('error') === 'session';
-const groups = session ? await listLocalGroups() : [];
+const data = session ? await readPersistentData() : null;
+const groups = data?.groups ?? [];
 const activeGroups = groups.filter((group) => group.archivedAt === null);
-const editions = (await Promise.all(activeGroups.map((group) => listLocalEditions(group.id)))).flat();
-const participantCount = (await Promise.all(activeGroups.map((group) => listLocalParticipants(group.id))))
-	.reduce((total, participants) => total + participants.length, 0);
+const activeGroupIds = new Set(activeGroups.map((group) => group.id));
+const editions = data?.editions.filter((edition) => activeGroupIds.has(edition.groupId)) ?? [];
+const participantCount = data?.participants.filter((participant) => activeGroupIds.has(participant.groupId)).length ?? 0;
 const activeDrawCount = activeGroups.filter((group) =>
 	group.activeEditionId !== null && editions.some((edition) => edition.id === group.activeEditionId && edition.status === 'active'),
 ).length;

@@ -13,24 +13,28 @@ function iso(value: Date | string): string {
 }
 
 export async function loadPostgresState(client: PoolClient): Promise<LocalDataState> {
-	const groups = await client.query(`SELECT g.*, (SELECT id FROM editions e WHERE e.group_id = g.id AND e.status = 'active') AS active_edition_id FROM groups g`);
-	const participants = await client.query('SELECT * FROM participants');
-	const exclusions = await client.query('SELECT first_participant_id, second_participant_id FROM participant_exclusions');
-	const ideas = await client.query('SELECT * FROM gift_ideas');
-	const editions = await client.query('SELECT document FROM editions');
-	const sessions = await client.query('SELECT * FROM sessions');
+	// One round trip for the complete snapshot. The transaction lock must be
+	// acquired in a separate statement before this one to avoid a stale snapshot.
+	const { rows: [snapshot] } = await client.query(`SELECT
+		COALESCE((SELECT jsonb_agg(to_jsonb(g) || jsonb_build_object('active_edition_id',
+			(SELECT id FROM editions e WHERE e.group_id = g.id AND e.status = 'active'))) FROM groups g), '[]'::jsonb) AS groups,
+		COALESCE((SELECT jsonb_agg(to_jsonb(p)) FROM participants p), '[]'::jsonb) AS participants,
+		COALESCE((SELECT jsonb_agg(to_jsonb(x)) FROM participant_exclusions x), '[]'::jsonb) AS exclusions,
+		COALESCE((SELECT jsonb_agg(to_jsonb(i)) FROM gift_ideas i), '[]'::jsonb) AS ideas,
+		COALESCE((SELECT jsonb_agg(document) FROM editions), '[]'::jsonb) AS editions,
+		COALESCE((SELECT jsonb_agg(to_jsonb(s)) FROM sessions s), '[]'::jsonb) AS sessions`);
 	const state: unknown = {
 		schemaVersion: 5,
-		groups: groups.rows.map((g) => ({ id: g.id, slug: g.slug, name: g.name, accessPasswordHash: g.access_password_hash,
+		groups: snapshot.groups.map((g: any) => ({ id: g.id, slug: g.slug, name: g.name, accessPasswordHash: g.access_password_hash,
 			activeEditionId: g.active_edition_id, suggestedBudgetAmount: g.suggested_budget_amount === null ? null : Number(g.suggested_budget_amount),
 			archivedAt: g.archived_at ? iso(g.archived_at) : null, createdAt: iso(g.created_at), updatedAt: iso(g.updated_at) })),
-		participants: participants.rows.map((p) => ({ id: p.id, groupId: p.group_id, displayName: p.display_name, alias: p.alias,
+		participants: snapshot.participants.map((p: any) => ({ id: p.id, groupId: p.group_id, displayName: p.display_name, alias: p.alias,
 			accessPinHash: p.access_pin_hash, createdAt: iso(p.created_at), updatedAt: iso(p.updated_at) })),
-		exclusionPairs: exclusions.rows.map((e) => `${e.first_participant_id}:${e.second_participant_id}`),
-		giftIdeas: ideas.rows.map((i) => ({ id: i.id, groupId: i.group_id, participantId: i.participant_id, title: i.title,
+		exclusionPairs: snapshot.exclusions.map((e: any) => `${e.first_participant_id}:${e.second_participant_id}`),
+		giftIdeas: snapshot.ideas.map((i: any) => ({ id: i.id, groupId: i.group_id, participantId: i.participant_id, title: i.title,
 			affiliateUrl: i.affiliate_url, imageUrl: i.image_url, sortOrder: i.sort_order, createdAt: iso(i.created_at), updatedAt: iso(i.updated_at) })),
-		editions: editions.rows.map((e) => e.document),
-		sessions: sessions.rows.map((s) => ({ id: s.id, type: s.type, ...(s.type === 'group' ? { groupId: s.group_id } : {}),
+		editions: snapshot.editions,
+		sessions: snapshot.sessions.map((s: any) => ({ id: s.id, type: s.type, ...(s.type === 'group' ? { groupId: s.group_id } : {}),
 			createdAt: iso(s.created_at), expiresAt: iso(s.expires_at) })),
 	};
 	if (!isLocalDataState(state)) throw new Error('Datos almacenados no válidos.');
