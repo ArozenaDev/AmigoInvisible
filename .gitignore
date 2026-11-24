@@ -37,3 +37,5 @@ agents.md
 /private-data/
 *.key
 *.pem
+.vercel
+.env*
