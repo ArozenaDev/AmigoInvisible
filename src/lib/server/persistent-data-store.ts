@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import { BlobPreconditionFailedError, get, put } from '@vercel/blob';
 
 import {
@@ -10,7 +11,12 @@ import {
 } from './local-json-store.ts';
 
 const DATA_PATHNAME = 'amigo-invisible/state-v1.json';
-const MAX_WRITE_ATTEMPTS = 3;
+const MAX_WRITE_ATTEMPTS = 6;
+
+async function waitBeforeRetry(attempt: number): Promise<void> {
+	const maximum = Math.min(50 * 2 ** attempt, 800);
+	await new Promise((resolve) => setTimeout(resolve, maximum / 2 + randomInt(0, maximum / 2 + 1)));
+}
 
 export class PersistentDataConflictError extends Error {
 	constructor() {
@@ -54,7 +60,10 @@ export async function updatePersistentData<Result>(
 			});
 				return result;
 			} catch (error) {
-				if (error instanceof BlobPreconditionFailedError) continue;
+				if (error instanceof BlobPreconditionFailedError) {
+					if (attempt + 1 < MAX_WRITE_ATTEMPTS) await waitBeforeRetry(attempt);
+					continue;
+				}
 				throw error;
 			}
 		}
@@ -71,7 +80,10 @@ export async function updatePersistentData<Result>(
 			});
 			return result;
 		} catch (error) {
-			if (error instanceof BlobPreconditionFailedError) continue;
+			if (error instanceof BlobPreconditionFailedError) {
+				if (attempt + 1 < MAX_WRITE_ATTEMPTS) await waitBeforeRetry(attempt);
+				continue;
+			}
 			throw error;
 		}
 	}

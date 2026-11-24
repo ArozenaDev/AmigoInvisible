@@ -31,12 +31,14 @@ const participantRows = participants.map((participant) => ({
 	participant,
 }));
 const hasValidationError = Astro.url.searchParams.get('error') === 'validation';
+const hasSaveError = Astro.url.searchParams.get('error') === 'save';
 const hasDeleteError = Astro.url.searchParams.get('error') === 'delete';
 const hasParticipantDeleted = Astro.url.searchParams.get('deleted') === 'participant';
 ---
 
 <BaseLayout title="Participantes · Administración">
 	<AdminShell active="participantes">
+		{hasSaveError && <p class="form-error" role="alert">No se ha podido confirmar el guardado. Comprueba la lista antes de volver a intentarlo.</p>}
 		<section class="admin-section-header">
 			<div><p class="section-kicker">Participantes</p><h1>Personas e ideas</h1><p>Gestiona perfiles reutilizables, incompatibilidades e ideas de regalo dentro de una familia.</p></div>
 		</section>

@@ -6,6 +6,7 @@ import { hasSameOrigin } from '../../../../lib/server/request-security.ts';
 import { ADMIN_SESSION_COOKIE, getAdminSession } from '../../../../lib/server/sessions.ts';
 
 export const POST: APIRoute = async ({ params, request, cookies, redirect }) => {
+	try {
 	if (!hasSameOrigin(request) || !await getAdminSession(cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
 		return new Response(null, { status: 403 });
 	}
@@ -29,4 +30,8 @@ export const POST: APIRoute = async ({ params, request, cookies, redirect }) => 
 	return participant === null
 		? redirect(`/admin/participantes?family=${encodeURIComponent(slug)}&error=validation`, 303)
 		: redirect(`/admin/participantes?family=${encodeURIComponent(slug)}`, 303);
+	} catch {
+		// Do not expose infrastructure errors or leave the browser on an API URL.
+		return redirect(`/admin/participantes?family=${encodeURIComponent(params.slug ?? '')}&error=save`, 303);
+	}
 };
